@@ -10,8 +10,8 @@ using namespace std::chrono;
 class LaneDetector {
 public:
     LaneDetector(bool showflag, bool printflag) : it(nh), showflag(showflag), printflag(printflag){
-        image_sub = it.subscribe("/automobile/image_raw", 1, &LaneDetector::imageCallback, this);
-        image_pub = it.advertise("/automobile/image_modified", 1);
+        image_sub = it.subscribe("/camera/image_raw", 1, &LaneDetector::imageCallback, this);
+        // image_pub = it.advertise("/automobile/image_modified", 1);
         lane_pub = nh.advertise<utils::Lane>("/lane", 1);
         image = cv::Mat::zeros(480, 640, CV_8UC1);
         stopline = false;
@@ -159,7 +159,7 @@ private:
     ros::NodeHandle nh;
     image_transport::ImageTransport it;
     image_transport::Subscriber image_sub;
-    image_transport::Publisher image_pub;
+    // image_transport::Publisher image_pub;
     ros::Publisher lane_pub;
     double num_iterations = 1;
     double total;

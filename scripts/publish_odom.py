@@ -82,7 +82,7 @@ class Odom():
         self.subscribers.append(self.model_sub)
         
         # Create an instance of TimeSynchronizer
-        ts = ApproximateTimeSynchronizer(self.subscribers, queue_size=3, slop=0.0015)
+        ts = ApproximateTimeSynchronizer(self.subscribers, queue_size=3, slop=0.0015, allow_headerless=True)
         ts.registerCallback(self.callback)
 
     def process_yaw_sim(self, yaw):

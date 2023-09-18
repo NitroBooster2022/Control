@@ -1,5 +1,5 @@
 <launch>
-<arg name="show_sign"  default="False" doc="display sign detection window (True or False)"/>
+<arg name="show_sign"  default="True" doc="display sign detection window (True or False)"/>
 <arg name="show_lane"  default="False" doc="display lane detection window (True or False)"/>
 <arg name="print_sign"  default="False" doc="print sign detection (True or False)"/>
 <arg name="print_lane"  default="False" doc="print lane detection (True or False)"/>
@@ -11,7 +11,7 @@
 <!-- control3.py needs a lane node, a sign node and an encoder node to run-->
 
 <node pkg="control" args="--simulation $(arg simulation) --path $(arg path) --custom $(arg custom)" name="control" output="screen" type="control3.py" required="true"/>
-<node pkg="control" name="encoderSim" output="screen" type="encoderSim.py" required="true"/>
+<node pkg="control" name="encoderSim" output="screen" type="pub_tf2.py" required="true"/>
 <node pkg="control" args="-s $(arg show_lane) -p $(arg print_lane)" name="lane" output="screen" type="lane" required="true"/>
 <node pkg="control" args="-s $(arg show_sign) -p $(arg print_sign)" name="sign" output="screen" type="signFastest" required="true"/>
 

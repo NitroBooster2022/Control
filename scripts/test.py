@@ -30,6 +30,7 @@ class StateMachine():
         self.rate = rospy.Rate(self.rateVal)
         self.dt = 1/self.rateVal #for PID
         self.wheelbase = 0.27
+        self.axletrack = 0.162
         self.testTimer = None
         self.testCounter = 0
         # self.tests.append([10, 0.2, 23.0])
@@ -535,7 +536,7 @@ class StateMachine():
                     axs[1, i].text(0.05, 0.95, stats_text, transform=axs[1, i].transAxes, verticalalignment='top')
                 self.testAngle = "_lanefollow" if self.followLane else self.testAngle
                 plt.tight_layout()
-                plt.savefig(f'/home/simonli/Documents/Simulator/src/control/scripts/testPlots/plot_realSteer3&Vel_{self.updateMethod}_Dur{self.testDuration}_vel{self.testSpeed}_angle{self.testAngle}_rate{int(round(self.rateVal))}.png')
+                plt.savefig(f'/home/simonli/Documents/Simulator/src/control/scripts/testPlots/plot_ackerman_{self.updateMethod}_Dur{self.testDuration}_vel{self.testSpeed}_angle{self.testAngle}_rate{int(round(self.rateVal))}.png')
                 exit()
                 return 1
             self.testAngle = np.clip(self.get_steering_angle()*180/np.pi, -23, 23) if self.followLane else self.testAngle
@@ -2193,6 +2194,50 @@ class StateMachine():
         if self.odomYaw < 0: #convert to 0-2pi
             self.odomYaw += 2*np.pi
         return
+    def update_states_ackermann(self, speed, steering_angle):
+        # dead reckoning odometry using Runge-Kutta 4th order method
+        dt = (rospy.Time.now()-self.timerodom).to_sec()
+        self.timerodom = rospy.Time.now()
+
+        # Step 1: Calculate individual wheel velocities based on Ackermann steering geometry
+        l_K = math.tan(steering_angle*math.pi/180) / self.wheelbase
+        v_left = speed * (2 - self.axletrack * l_K) / 2
+        v_right = speed * (2 + self.axletrack * l_K) / 2
+
+        # Step 2: Calculate individual wheel displacements
+        magnitude_left = v_left * dt * self.odomRatio
+        magnitude_right = v_right * dt * self.odomRatio
+
+        # Step 3: Compute the average magnitude and yaw rate for RK4 integration
+        magnitude_avg = (magnitude_left + magnitude_right) / 2
+        yaw_rate = (magnitude_right - magnitude_left) / self.axletrack
+        
+        # Runge-Kutta 4th order method
+        k1_x = magnitude_avg * math.cos(self.yaw)
+        k1_y = magnitude_avg * math.sin(self.yaw)
+        k1_yaw = yaw_rate
+
+        k2_x = magnitude_avg * math.cos(self.yaw + dt/2 * k1_yaw)
+        k2_y = magnitude_avg * math.sin(self.yaw + dt/2 * k1_yaw)
+        k2_yaw = yaw_rate
+
+        k3_x = magnitude_avg * math.cos(self.yaw + dt/2 * k2_yaw)
+        k3_y = magnitude_avg * math.sin(self.yaw + dt/2 * k2_yaw)
+        k3_yaw = yaw_rate
+
+        k4_x = magnitude_avg * math.cos(self.yaw + dt * k3_yaw)
+        k4_y = magnitude_avg * math.sin(self.yaw + dt * k3_yaw)
+        k4_yaw = yaw_rate
+
+        self.odomX += 1 / 6 * (k1_x + 2 * k2_x + 2 * k3_x + k4_x)
+        self.odomY += 1 / 6 * (k1_y + 2 * k2_y + 2 * k3_y + k4_y)
+        self.odomYaw += 1 / 6 * (k1_yaw + 2 * k2_yaw + 2 * k3_yaw + k4_yaw)
+
+        self.odomYaw = np.fmod(self.odomYaw, 2*math.pi)
+        if self.odomYaw < 0: #convert to 0-2pi
+            self.odomYaw += 2*np.pi
+        return
+
     def odometry(self):
         dt = (rospy.Time.now()-self.timerodom).to_sec()
         self.timerodom = rospy.Time.now()

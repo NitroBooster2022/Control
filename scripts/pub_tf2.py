@@ -6,7 +6,7 @@ from std_msgs.msg import Header, Float32
 from message_filters import ApproximateTimeSynchronizer
 from gazebo_msgs.msg import ModelStates, LinkStates
 import math
-from utils.msg import encoder, IMU
+from utils.msg import encoder, IMU, Telemetry
 import message_filters
 import tf2_ros
 import geometry_msgs.msg
@@ -17,12 +17,15 @@ class EncoderNode():
     def __init__(self):
         print("init encoder node")
         rospy.init_node('encoder_node', anonymous=True)
+        self.toggle = True
         self.model_sub = message_filters.Subscriber("/gazebo/model_states", ModelStates, queue_size=3)
         self.link_sub = message_filters.Subscriber("/gazebo/link_states", LinkStates, queue_size=3)
         self.imu_sub = rospy.Subscriber("/automobile/IMU", IMU, self.imu_callback, queue_size=3)
         self.pub = rospy.Publisher("/automobile/encoder", encoder, queue_size = 3)
         self.steer_pub = rospy.Publisher("/automobile/steering", Float32, queue_size = 3)
         # self.steer_sub = rospy.Subscriber("/automobile/steering", Float32, self.steer_callback, queue_size = 3)
+        self.telemetry_pub = rospy.Publisher("/telemetry", Telemetry, queue_size = 3)
+        self.telemetry_msg = Telemetry()
 
         self.subscribers = [self.model_sub, self.link_sub]
         self.ts = ApproximateTimeSynchronizer(self.subscribers, 10, slop = 0.00033, allow_headerless=True)
@@ -31,6 +34,7 @@ class EncoderNode():
         self.p = encoder()
         self.rate = rospy.Rate(15)
         self.yaw = 0
+        self.accel = 0
         self.left_pose = None
         self.right_pose = None
         self.right_inertial = None
@@ -45,6 +49,11 @@ class EncoderNode():
         self.br = tf2_ros.TransformBroadcaster()
         # Set up a timer to run the publisher loop at 15 Hz
         self.timer = rospy.Timer(rospy.Duration(1.0 / 15.0), self.publish_encoder)
+        self.waypoints = alex.load('/home/simonli/Documents/Simulator/src/mpc/scripts/speedrun1.npy')
+        self.waypoints_x = self.waypoints[0, :]
+        self.waypoints_y = self.waypoints[1, :]
+        self.telemetry_msg.ptsx = self.waypoints_x
+        self.telemetry_msg.ptsy = self.waypoints_y
 
     def steer_callback(self, msg):
         self.steer = msg.data
@@ -79,6 +88,9 @@ class EncoderNode():
 
     def imu_callback(self, imu):
         self.yaw = imu.yaw #between pi to -pi
+        accelx = imu.accelx
+        accely = imu.accely
+        self.accel = math.sqrt(accelx**2 + accely**2)
 
     def publish_encoder(self, event):
         header = Header()
@@ -88,17 +100,18 @@ class EncoderNode():
 
         x_speed = self.car_inertial.linear.x
         y_speed = self.car_inertial.linear.y
-        syaw = math.atan2(y_speed, x_speed)
+        speedYaw = math.atan2(y_speed, x_speed)
         speed = math.sqrt(x_speed**2 + y_speed**2)
-        # print("car speed: ", speed)
-        error = abs(syaw - self.yaw)
-        if error >= 5.73:
-            error -= 6.28
-        if abs(error) < 1.57:
-            self.p.speed = speed
-        else:
-            self.p.speed = -speed
+        angle_diff = (speedYaw - self.yaw + math.pi) % (2 * math.pi) - math.pi
+        if abs(angle_diff) > 3 * math.pi / 4:
+            speed *= -1
+        if(abs(speed) > 0.195) and self.toggle:
+            rospy.loginfo("speed: %f", speed)
+            self.toggle = False
+        if abs(speed) < 0.195:
+            self.toggle = True
 
+        self.p.speed = speed
         self.pub.publish(self.p)
 
 
@@ -175,6 +188,15 @@ class EncoderNode():
         # publish the steering of the wheel relative to the car
         self.publish_steering_angle()
 
+        # publish telemetry
+        self.telemetry_msg.x = self.car_pose.position.x
+        self.telemetry_msg.y = self.car_pose.position.y + 15
+        self.telemetry_msg.psi = self.yaw
+        self.telemetry_msg.speed = speed
+        self.telemetry_msg.steering_angle = self.steer
+        self.telemetry_msg.throttle = self.accel
+        self.telemetry_pub.publish(self.telemetry_msg)
+
     def publish_steering_angle(self):
         # Convert the orientation quaternion of the car to Euler angles
         euler_angles_car = euler_from_quaternion([self.car_pose.orientation.x, self.car_pose.orientation.y, self.car_pose.orientation.z, self.car_pose.orientation.w])
@@ -193,11 +215,12 @@ class EncoderNode():
             steering_angle += 180
         if abs(steering_angle) > 23:
             self.angleCount += 1
-            steering_angle = 23.0 * steering_angle / abs(steering_angle)
-        print("real steering angle: ", round(steering_angle, 2), ", command: ", round(self.steer, 2), ", error: ", round(steering_angle - self.steer, 2), ", angleCount: ", self.angleCount)
+            steering_angle = 22.937 * steering_angle / abs(steering_angle)
+        # print("real steering angle: ", round(steering_angle, 2), ", command: ", round(self.steer, 2), ", error: ", round(steering_angle - self.steer, 2), ", angleCount: ", self.angleCount)
         # Publish the steering angle
         self.steer_pub.publish(Float32(steering_angle))
-
+    #0.672, 0687 0.678 0.744 0.751 0.744 0.75
+    #0.812 0.679
 
 if __name__ == '__main__':
     import rospy

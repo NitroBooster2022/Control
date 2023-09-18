@@ -172,7 +172,7 @@ int main(int argc, char **argv) {
     ros::NodeHandle nh;
     image_transport::ImageTransport it(nh);
     ros::Publisher pub = nh.advertise<utils::Sign>("sign", 10);
-    image_transport::Subscriber sub = it.subscribe("automobile/image_raw", 1, boost::bind(&imageCallback, _1, &api, &pub, showFlag, printFlag));
+    image_transport::Subscriber sub = it.subscribe("camera/image_raw", 1, boost::bind(&imageCallback, _1, &api, &pub, showFlag, printFlag));
     //define rate
     ros::Rate loop_rate(2.5);
 
