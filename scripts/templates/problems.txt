@@ -1,0 +1,3 @@
+1-(fixed) going from track3N to roundabout: can't see the crosswalk(try turning the camera to the right)
+2-(fixed) going from curvedpath to roundabout: can't see stopline at roundabout
+3-going from int1W to int1N: can't see the crosswalk(try turning the camera to the right)

@@ -1,0 +1,17 @@
+<launch>
+<arg name="show_sign"  default="False" doc="display sign detection window (True or False)"/>
+<arg name="show_lane"  default="False" doc="display lane detection window (True or False)"/>
+<arg name="print_sign"  default="False" doc="print sign detection (True or False)"/>
+<arg name="print_lane"  default="False" doc="print lane detection (True or False)"/>
+<!-- <arg name="method"  default="histogram" doc="method for lane detection (histogram or houghlines)"/> -->
+
+<node pkg="control" name="encoderSim" output="screen" type="encoderSim.py" required="true"/>
+<node pkg="control" args="-s $(arg show_lane) -p $(arg print_lane)" name="lane" output="screen" type="lane" required="true"/>
+<node pkg="control" args="-s $(arg show_sign) -p $(arg print_sign)" name="sign" output="screen" type="signFastest" required="true"/>
+
+<!-- python lane and sign -->
+<?ignore
+<node pkg="control" args="--show $(arg show_lane) --method $(arg method)" name="lane" output="screen" type="lane.py" required="true"/>
+<node pkg="control" args="--show $(arg show_sign)" name="sign" output="screen" type="sign_onnx.py" required="true"/>
+?>
+</launch>

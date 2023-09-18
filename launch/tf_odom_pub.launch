@@ -1,0 +1,8 @@
+<launch>
+
+<node pkg="control" name="encoderSim" output="screen" type="encoderSim.py" required="true"/>
+<node pkg="control" name="odom_pub" output="screen" type="publish_odom.py" required="true"/>
+<node pkg="control" name="tf_dynamic" output="screen" type="publish_tf_dynamic.py" required="true"/>
+<node pkg="control" name="tf_static" output="screen" type="publish_tf_static.py" required="true"/>
+
+</launch>

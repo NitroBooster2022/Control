@@ -1,0 +1,10 @@
+29 26.5 35 35.5 40
+
+Plan for finals
+tune right left turning traj
+get distance to park size measurements
+tune park traj
+tune car overtaking
+tune roundabout
+add trajectories for diff speed in speed running
+have option to not use cp check (assuming no overtaking there, need to verify)
