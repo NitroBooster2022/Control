@@ -58,34 +58,20 @@ class signFastest {
             sign_msg.header.stamp = ros::Time::now();
             sign_msg.num = boxes.size();
 
-            int bb = 0;
+            int hsy = 0;
             for (const auto &box : boxes) {
                 double distance = computeMedianDepth(cv_ptr_depth->image, box)/1000 + 0.21; // dist from cam to front of car
                 sign_msg.distances.push_back(distance);
                 sign_msg.objects.push_back(box.cate);
-                if(bb==0){
-                    sign_msg.box1.push_back(box.x1);
-                    sign_msg.box1.push_back(box.y1);
-                    sign_msg.box1.push_back(box.x2-box.x1);
-                    sign_msg.box1.push_back(box.y2-box.y1);
-                } else if (bb==1){
-                    sign_msg.box2.push_back(box.x1);
-                    sign_msg.box2.push_back(box.y1);
-                    sign_msg.box2.push_back(box.x2-box.x1);
-                    sign_msg.box2.push_back(box.y2-box.y1);
-                } else if (bb == 2) {
-                    sign_msg.box3.push_back(box.x1);
-                    sign_msg.box3.push_back(box.y1);
-                    sign_msg.box3.push_back(box.x2-box.x1);
-                    sign_msg.box3.push_back(box.y2-box.y1);
-                } else if (bb == 3) {
-                    sign_msg.box4.push_back(box.x1);
-                    sign_msg.box4.push_back(box.y1);
-                    sign_msg.box4.push_back(box.x2-box.x1);
-                    sign_msg.box4.push_back(box.y2-box.y1);
+                std::vector<std::vector<float>*> box_data = {&sign_msg.box1, &sign_msg.box2, &sign_msg.box3, &sign_msg.box4};
+                if (hsy < 4) {
+                    box_data[hsy]->push_back(box.x1);
+                    box_data[hsy]->push_back(box.y1);
+                    box_data[hsy]->push_back(box.x2 - box.x1);
+                    box_data[hsy]->push_back(box.y2 - box.y1);
                 }
                 sign_msg.confidence.push_back(box.score);
-                bb++;
+                hsy++;
             }
 
             // Publish Sign message
@@ -93,7 +79,7 @@ class signFastest {
             if(printDuration) {
                 stop = high_resolution_clock::now();
                 duration = duration_cast<microseconds>(stop - start);
-                ROS_INFO("sign durations: %lld", duration.count());
+                ROS_INFO("sign durations: %ld", duration.count());
             }
             // for display
             if (show) {
@@ -105,7 +91,8 @@ class signFastest {
                 for (int i = 0; i < boxes.size(); i++) {
                     char text[256];
                     sprintf(text, "%s %.1f%%", class_names[boxes[i].cate], boxes[i].score * 100);
-
+                    char text2[256];
+                    sprintf(text2, "%s %.1fm", class_names[boxes[i].cate], sign_msg.distances[i]);
                     int baseLine = 0;
                     cv::Size label_size = cv::getTextSize(text, cv::FONT_HERSHEY_SIMPLEX, 0.5, 1, &baseLine);
 
@@ -125,7 +112,7 @@ class signFastest {
 
                     cv::rectangle(normalizedDepthImage, cv::Rect(cv::Point(x, y), cv::Size(label_size.width, label_size.height + baseLine)),
                                 cv::Scalar(255, 255, 255), -1);
-                    cv::putText(normalizedDepthImage, text, cv::Point(x, y + label_size.height),
+                    cv::putText(normalizedDepthImage, text2, cv::Point(x, y + label_size.height),
                                 cv::FONT_HERSHEY_SIMPLEX, 0.5, cv::Scalar(0, 0, 0));
                     cv::rectangle (normalizedDepthImage, cv::Point(boxes[i].x1, boxes[i].y1), 
                                 cv::Point(boxes[i].x2, boxes[i].y2), cv::Scalar(255, 255, 0), 2, 2, 0);
@@ -241,8 +228,6 @@ int main(int argc, char **argv) {
                 exit(1);
         }
     }
-
-    
 
     // Initialize ROS node and publisher
     ros::init(argc, argv, "object_detector");
