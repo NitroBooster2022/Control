@@ -4,53 +4,30 @@
 #include "image_transport/image_transport.h"
 #include "sensor_msgs/image_encodings.h"
 #include "std_msgs/Header.h"
+#include "utils/Sign.h"
 #include <chrono>
-#include <vector>
-#include <std_msgs/Float32MultiArray.h>
 using namespace std::chrono;
 
 class signFastest {
     public:
-        signFastest(ros::NodeHandle& nh) 
-            :it(nh)
+        signFastest(ros::NodeHandle& nh, bool show_, bool print_, bool printDuration_) 
+            :it(nh),
+            show(show_),
+            print(print_),
+            printDuration(printDuration_)
         {
-            nh.getParam("class_names", class_names);
-            nh.getParam("confidence_thresholds", confidence_thresholds);
-            nh.getParam("distance_thresholds", distance_thresholds);
-            nh.getParam("showFlag", show);
-            nh.getParam("printFlag", print);
-            nh.getParam("printFlag", printDuration); //printDuration
-            std::string model;
-            nh.getParam("model", model);
-            std::cout << "class_names: " << class_names.size() << std::endl;
-            std::cout << "confidence_thresholds: " << confidence_thresholds.size() << std::endl;
-            std::cout << "distance_thresholds: " << distance_thresholds.size() << std::endl;
-            std::cout << "model: " << model << std::endl;
-
-            // std::string filePathParam = __FILE__;
-            // size_t pos = filePathParam.rfind("/") + 1;
-            // filePathParam.replace(pos, std::string::npos, "model/sissi753-opt.param");
-            // const char* param = filePathParam.c_str();
-            // std::string filePathBin = __FILE__;
-            // pos = filePathBin.rfind("/") + 1;
-            // filePathBin.replace(pos, std::string::npos, "model/sissi753-opt.bin");
-            // const char* bin = filePathBin.c_str();
-            // api.loadModel(param,bin);
-
             std::string filePathParam = __FILE__;
             size_t pos = filePathParam.rfind("/") + 1;
-            filePathParam.replace(pos, std::string::npos, "model/" + model + ".param");
+            filePathParam.replace(pos, std::string::npos, "model/sissi753-opt.param");
             const char* param = filePathParam.c_str();
 
             std::string filePathBin = __FILE__;
             pos = filePathBin.rfind("/") + 1;
-            filePathBin.replace(pos, std::string::npos, "model/" + model + ".bin");
+            filePathBin.replace(pos, std::string::npos, "model/sissi753-opt.bin");
             const char* bin = filePathBin.c_str();
+            api.loadModel(param,bin);
 
-            api.loadModel(param, bin);
-
-            pub = nh.advertise<std_msgs::Float32MultiArray>("sign", 10);
-            std::cout <<"pub created" << std::endl;
+            pub = nh.advertise<utils::Sign>("sign", 10);
             depth_sub = it.subscribe("/camera/depth/image_raw", 3, &signFastest::depthCallback, this);
             // wait for depth image
             ros::topic::waitForMessage<sensor_msgs::Image>("/camera/depth/image_raw", nh);
@@ -75,32 +52,28 @@ class signFastest {
             }
 
             api.detection(cv_ptr->image, boxes);
-            std_msgs::Float32MultiArray sign_msg;
-            sign_msg.layout.data_offset = 0;
+
+            utils::Sign sign_msg;
+            sign_msg.header.frame_id = "camera_frame"; 
+            sign_msg.header.stamp = ros::Time::now();
+            sign_msg.num = boxes.size();
 
             int hsy = 0;
             for (const auto &box : boxes) {
-                double distance = computeMedianDepth(cv_ptr_depth->image, box)/1000; // in meters
-                int class_id = box.cate;
-                float confidence = box.score;
-                if (confidence >= confidence_thresholds[class_id] && distance <= distance_thresholds[class_id]) {
-                    sign_msg.data.push_back(box.x1);
-                    sign_msg.data.push_back(box.y1);
-                    sign_msg.data.push_back(box.x2);
-                    sign_msg.data.push_back(box.y2);
-                    sign_msg.data.push_back(distance);
-                    sign_msg.data.push_back(confidence);
-                    sign_msg.data.push_back(static_cast<float>(class_id));
-                    hsy++;
+                double distance = computeMedianDepth(cv_ptr_depth->image, box)/1000; // dist from cam to front of car
+                sign_msg.distances.push_back(distance);
+                sign_msg.objects.push_back(box.cate);
+                std::vector<std::vector<float>*> box_data = {&sign_msg.box1, &sign_msg.box2, &sign_msg.box3, &sign_msg.box4};
+                if (hsy < 4) {
+                    box_data[hsy]->push_back(box.x1);
+                    box_data[hsy]->push_back(box.y1);
+                    box_data[hsy]->push_back(box.x2 - box.x1);
+                    box_data[hsy]->push_back(box.y2 - box.y1);
                 }
+                sign_msg.confidence.push_back(box.score);
+                hsy++;
             }
-            if(hsy) {
-                std_msgs::MultiArrayDimension dim;
-                dim.label = "detections";
-                dim.size = hsy;
-                dim.stride = boxes.size() * 7;
-                sign_msg.layout.dim.push_back(dim); 
-            }
+
             // Publish Sign message
             pub.publish(sign_msg);
             if(printDuration) {
@@ -117,11 +90,9 @@ class signFastest {
                 cv_ptr_depth->image.convertTo(normalizedDepthImage, CV_8U, 255.0 / (maxVal - minVal), -minVal * 255.0 / (maxVal - minVal));
                 for (int i = 0; i < boxes.size(); i++) {
                     char text[256];
-                    int id = boxes[i].cate;
-                    sprintf(text, "%s %.1f%%", class_names[id].c_str(), boxes[i].score * 100);
+                    sprintf(text, "%s %.1f%%", class_names[boxes[i].cate], boxes[i].score * 100);
                     char text2[256];
-                    double distance = computeMedianDepth(cv_ptr_depth->image, boxes[i])/1000; 
-                    sprintf(text2, "%s %.1fm", class_names[id].c_str(), distance);
+                    sprintf(text2, "%s %.1fm", class_names[boxes[i].cate], sign_msg.distances[i]);
                     int baseLine = 0;
                     cv::Size label_size = cv::getTextSize(text, cv::FONT_HERSHEY_SIMPLEX, 0.5, 1, &baseLine);
 
@@ -153,9 +124,8 @@ class signFastest {
             }
             if (print) {
                 for (int i = 0; i < boxes.size(); i++) {
-                    double distance = computeMedianDepth(cv_ptr_depth->image, boxes[i])/1000;
-                    std::cout<< "x1:" << boxes[i].x1<<", y1:"<<boxes[i].y1<<", x2:"<<boxes[i].x2<<", y2:"<<boxes[i].y2
-                     <<", conf:"<<boxes[i].score<<", id:"<<boxes[i].cate<<", "<<class_names[boxes[i].cate]<<", dist:"<< distance <<std::endl;
+                    std::cout<<boxes[i].x1<<" "<<boxes[i].y1<<" "<<boxes[i].x2-boxes[i].x1<<" "<<boxes[i].y2-boxes[i].y1
+                     <<" "<<boxes[i].score<<" "<<boxes[i].cate<<" "<<class_names[boxes[i].cate]<<" dist: "<<sign_msg.distances[i]<<std::endl;
                 }
             }
         }
@@ -169,6 +139,7 @@ class signFastest {
         bool show;
         bool print;
         bool printDuration;
+        static const char* class_names[13];
         cv_bridge::CvImagePtr cv_ptr;
         cv_bridge::CvImagePtr cv_ptr_depth;
         cv::Mat normalizedDepthImage;
@@ -181,9 +152,7 @@ class signFastest {
         std::chrono::microseconds duration;
 
         std::vector<double> depths;
-        std::vector<float> confidence_thresholds;
-        std::vector<float> distance_thresholds;
-        std::vector<std::string> class_names;
+        // cv::Mat croppedDepth;
         double computeMedianDepth(const cv::Mat& depthImage, const TargetBox& box) {
             // Ensure the bounding box coordinates are valid
             int x1 = std::max(0, box.x1);
@@ -220,14 +189,50 @@ class signFastest {
             }
 };
 
+
+const char* signFastest::class_names[13] = {
+    "oneway", "highwayentrance", "stopsign", "roundabout", "park", "crosswalk",
+    "noentry", "highwayexit", "priority", "lights", "block", "pedestrian", "car"
+};
 int main(int argc, char **argv) {
     int opt;
+    bool showFlag = false;
+    bool printFlag = false;
+    bool printDuration = false;
+    std::string modelnum = "11";
     
+    // Loop thru command line args
+    while ((opt = getopt(argc, argv, "hspd:m:")) != -1) {
+        switch (opt) {
+            case 's': 
+                showFlag = true;
+                break;
+            case 'p': 
+                printFlag = true;
+                printDuration = true;
+                break;
+            case 'd': 
+                printDuration = true;
+                break;
+            case 'm': 
+                modelnum = optarg; 
+                break;
+            case 'h': 
+                std::cout << "-s to display image\n";
+                std::cout << "-p to print detection\n";
+                std::cout << "-d to print duration\n";  // added this for clarity
+                std::cout << "-m [model_number] to set the model number\n";
+                exit(0);
+            default:
+                std::cerr << "Invalid argument\n";
+                exit(1);
+        }
+    }
+
     // Initialize ROS node and publisher
     ros::init(argc, argv, "object_detector");
     ros::NodeHandle nh;
-    
-    signFastest signFastest(nh);
+    signFastest signFastest(nh, showFlag, printFlag, printDuration);
     //define rate
     ros::Rate loop_rate(25);
 
