@@ -1,0 +1,3 @@
+# Description: GPS configuration file
+rate: 4
+max_noise: 0.2
