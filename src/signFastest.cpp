@@ -17,11 +17,14 @@ class signFastest {
             nh.getParam("class_names", class_names);
             nh.getParam("confidence_thresholds", confidence_thresholds);
             nh.getParam("distance_thresholds", distance_thresholds);
-            nh.getParam("showFlag", show);
-            nh.getParam("printFlag", print);
-            nh.getParam("printFlag", printDuration); //printDuration
+            nh.getParam("/signFastest/showFlag", show);
+            nh.getParam("/signFastest/printFlag", print);
+            nh.getParam("/signFastest/printFlag", printDuration); //printDuration
             std::string model;
             nh.getParam("model", model);
+            std::cout << "showFlag: " << show << std::endl;
+            std::cout << "printFlag: " << print << std::endl;
+            std::cout << "printDuration: " << printDuration << std::endl;
             std::cout << "class_names: " << class_names.size() << std::endl;
             std::cout << "confidence_thresholds: " << confidence_thresholds.size() << std::endl;
             std::cout << "distance_thresholds: " << distance_thresholds.size() << std::endl;
@@ -80,18 +83,20 @@ class signFastest {
 
             int hsy = 0;
             for (const auto &box : boxes) {
-                double distance = computeMedianDepth(cv_ptr_depth->image, box)/1000; // in meters
                 int class_id = box.cate;
                 float confidence = box.score;
-                if (confidence >= confidence_thresholds[class_id] && distance <= distance_thresholds[class_id]) {
-                    sign_msg.data.push_back(box.x1);
-                    sign_msg.data.push_back(box.y1);
-                    sign_msg.data.push_back(box.x2);
-                    sign_msg.data.push_back(box.y2);
-                    sign_msg.data.push_back(distance);
-                    sign_msg.data.push_back(confidence);
-                    sign_msg.data.push_back(static_cast<float>(class_id));
-                    hsy++;
+                if (confidence >= confidence_thresholds[class_id]) {
+                    double distance = computeMedianDepth(cv_ptr_depth->image, box)/1000; // in meters
+                    if (distance <= distance_thresholds[class_id]) {
+                        sign_msg.data.push_back(box.x1);
+                        sign_msg.data.push_back(box.y1);
+                        sign_msg.data.push_back(box.x2);
+                        sign_msg.data.push_back(box.y2);
+                        sign_msg.data.push_back(distance);
+                        sign_msg.data.push_back(confidence);
+                        sign_msg.data.push_back(static_cast<float>(class_id));
+                        hsy++;
+                    }
                 }
             }
             if(hsy) {
