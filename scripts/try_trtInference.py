@@ -1,38 +1,38 @@
-#!/usr/bin/env python3
-
-import argparse
-import rospy
+# import argparse
+# import rospy
 import cv2
 import os
 import time 
 import numpy as np
-from sensor_msgs.msg import Image, CompressedImage
-from cv_bridge import CvBridge, CvBridgeError
+# from sensor_msgs.msg import Image, CompressedImage
+# from cv_bridge import CvBridge, CvBridgeError
 # from pynput import keyboard
-from std_msgs.msg import Header
-from utils.msg import Sign
+# from std_msgs.msg import Header
+# from utils.msg import Sign
 import tensorrt as trt
-import onnxruntime
+# import onnxruntime
 import lib.common as common
+import traceback
 
 class ObjectDetector():
-    def __init__(self, show):
+    def __init__(self, path, show):
         self.show = show
         # self.model = os.path.dirname(os.path.realpath(__file__)).replace("scripts", "models/np12s2.onnx")
         # self.model = os.path.dirname(os.path.realpath(__file__)).replace("scripts", "models/sissi9s.onnx")
         # self.model = os.path.dirname(os.path.realpath(__file__)).replace("scripts", "models/ningp10.onnx")
-        self.model = os.path.dirname(os.path.realpath(__file__)).replace("scripts", "models/")
-        print("Object detection using onnxruntime with: "+self.model)
+        # self.model = os.path.dirname(os.path.realpath(__file__)).replace("scripts", "models/")
+        self.model = path
+        print("Object detection using tensorrt with: "+self.model)
         self.detector = InferenceModel(self.model, conf_thres=0.45, iou_thres=0.35)
         # self.net = cv2.dnn.readNet(self.model)
         self.class_names = ['oneway', 'highwayexit', 'stopsign', 'roundabout', 'park', 'crosswalk', 'noentry', 'highwayentrance', 'priority', 'light', 'block', 'girl', 'car']
-        rospy.init_node('object_detection_node', anonymous=True)
-        self.bridge = CvBridge()
-        self.image_sub = rospy.Subscriber("/automobile/image_raw", Image, self.image_callback)
+        # rospy.init_node('object_detection_node', anonymous=True)
+        # self.bridge = CvBridge()
+        # self.image_sub = rospy.Subscriber("/automobile/image_raw", Image, self.image_callback)
         # self.image_sub = rospy.Subscriber("automobile/image_raw/compressed", CompressedImage, self.image_callback)
-        self.pub = rospy.Publisher("sign", Sign, queue_size = 3)
-        self.p = Sign()
-        self.rate = rospy.Rate(15)
+        # self.pub = rospy.Publisher("sign", Sign, queue_size = 3)
+        # self.p = Sign()
+        # self.rate = rospy.Rate(15)
 
     def image_callback(self, data):
         """
@@ -41,15 +41,15 @@ class ObjectDetector():
         """
         t1 = time.time()
         # Convert the image to the OpenCV format
-        image = self.bridge.imgmsg_to_cv2(data, "bgr8")
-
-         # Update the header information
-        header = Header()
-        header.seq = data.header.seq
-        header.stamp = data.header.stamp
-        header.frame_id = data.header.frame_id
-        # Update the header information in the message
-        self.p.header = header
+        # image = self.bridge.imgmsg_to_cv2(data, "bgr8")
+        image = data
+        #  # Update the header information
+        # header = Header()
+        # header.seq = data.header.seq
+        # header.stamp = data.header.stamp
+        # header.frame_id = data.header.frame_id
+        # # Update the header information in the message
+        # self.p.header = header
 
         # self.class_ids, __, self.boxes = self.detect(image, self.class_list, show=self.show)
         self.boxes, self.scores, self.class_ids = self.detector(image)
@@ -57,10 +57,11 @@ class ObjectDetector():
             img = draw_detections(image, self.boxes, self.scores, self.class_ids)
             # cv2.rectangle(image, (100, 100), (200, 300), (255,0,0), 2)
             cv2.imshow('sign', img)
-            cv2.waitKey(3)
-        self.p.objects = self.class_ids
-        self.p.num = len(self.class_ids)
-        if self.p.num>=2:
+            cv2.waitKey(0)
+        # self.p.objects = self.class_ids
+        # self.p.num = len(self.class_ids)
+        # if self.p.num>=2:
+        if len(self.class_ids)>=2:
             height1 = self.boxes[0][3]-self.boxes[0][1]
             width1 = self.boxes[0][2]-self.boxes[0][0]
             self.boxes[0][2] = width1
@@ -70,18 +71,15 @@ class ObjectDetector():
             width2 = self.boxes[1][2]-self.boxes[1][0]
             self.boxes[1][2] = width2
             self.boxes[1][3] = height2
-            self.p.box1 = self.boxes[0]
-            self.p.box2 = self.boxes[1]
+            # self.p.box1 = self.boxes[0]
+            # self.p.box2 = self.boxes[1]
         elif self.p.num>=1:
             height1 = self.boxes[0][3]-self.boxes[0][1]
             width1 = self.boxes[0][2]-self.boxes[0][0]
             self.boxes[0][2] = width1
             self.boxes[0][3] = height1
             # print("height1, width1: ", height1, width1, self.class_names[self.class_ids[0]])
-            self.p.box1 = self.boxes[0]
-
-        # print(self.p)
-        self.pub.publish(self.p)
+            # self.p.box1 = self.boxes[0]
         print("time: ",time.time()-t1)
 
 #detector class
@@ -174,6 +172,7 @@ class InferenceModel:
         trt_outputs = [output.reshape(self.output_shapes[0][0]) for output in trt_outputs]
         return trt_outputs
 
+    
     def new_process_output(self, outputs):
         outputs = np.array([cv2.transpose(outputs[0][0])])
         rows = outputs.shape[1]
@@ -388,17 +387,23 @@ def draw_comparison(img1, img2, name1, name2, fontsize=2.6, text_thickness=3):
     return combined_img
 
 if __name__ == '__main__':
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--show", type=str, default=False, help="show camera frames")
-    args = parser.parse_args(rospy.myargv()[1:])
+    # parser = argparse.ArgumentParser()
+    # parser.add_argument("--show", type=str, default=False, help="show camera frames")
+    # args = parser.parse_args(rospy.myargv()[1:])
+    # try:
+        # if args.show=="True":
+        #     s = True
+        # else:
+        #     s = False
+        # node = ObjectDetector(show = True)
+        # node.rate.sleep()
+        # rospy.spin()
+    # except rospy.ROSInterruptException:
+    #     cv2.destroyAllWindows()
     try:
-        if args.show=="True":
-            s = True
-        else:
-            s = False
-        node = ObjectDetector(show = s)
-        node.rate.sleep()
-        rospy.spin()
-    except rospy.ROSInterruptException:
-        cv2.destroyAllWindows()
-
+        image = cv2.imread('C:/Users/simon/Downloads/linxy/coco_dataset/coco_retrieved/images/train/1.jpg')
+        detect = ObjectDetector(path='C:/Users/simon/Downloads/linxy/YOLOv8/try3_26/detect/train/weights/best.engine', show=True)
+        detect.image_callback(image)
+    except Exception as e:
+        print(e)
+        print(traceback.format_exc())
