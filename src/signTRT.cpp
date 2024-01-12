@@ -1,6 +1,8 @@
 #include "ros/ros.h"
 #include "include/yolo-fastestv2.h"
 #include "cv_bridge/cv_bridge.h"
+#include <opencv2/core.hpp>
+#include <opencv2/core/types.hpp>
 #include "image_transport/image_transport.h"
 #include "sensor_msgs/image_encodings.h"
 #include "std_msgs/Header.h"
@@ -107,7 +109,37 @@ public:
     engine.runInference(inputs, featureVectors);
 
     // convert featureVectors into ouputs boxes
-    boxes[0].cate = featureVectors[0][0].data
+    std::vector<std::vector<int>> tmp_boxes;
+    std::vector<float> scores;
+    std::vector<int> classes;
+    int x1, y1, x2, y2;
+    for (size_t outputNum = 0; outputNum < featureVectors[0].size(); ++outputNum) {
+      const double minVal; const double maxVal; const cv::Point minLoc; const cv::Point maxLoc;
+      cv::minMaxLoc(featureVectors[0][outputNum][4:],&minVal, &maxVal, &minLoc, &maxLoc);
+      if (maxVal >= confScore) {
+        scores.push_back(maxVal);
+        classes.push_back(maxLoc);
+        x1 = featureVectors[0][outputNum][0]* img.cols;
+        y1 = featureVectors[0][outputNum][1] * img.rows;
+        y2 = tmp_boxes[outputNum].y1 + featureVectors[0][outputNum][3] *  img.rows;
+        x2 = tmp_boxes[outputNum].x1 + featureVectors[0][outputNum][2] *  img.cols;
+        tmp_boxes.push_back({ x1,y1,x2,y2 });
+      }
+    }
+    
+    //NMS suppression
+    std::vector<int> indices;
+    cv::dnn::NMSBoxes(tmp_boxes, scores, 0.25, 0.45, indices, 0.5);
+    TargetBox tmp_box;
+    for (int i = 0; i < indices.size();i++) {
+      tmp_box.cate = classes[indices[i]];
+      tmp_box.score = scores[indices[i]];
+      tmp_box.x1 = tmp_boxes[indices[i]][0];
+      tmp_box.y1 = tmp_boxes[indices[i]][1];
+      tmp_box.x2 = tmp_boxes[indices[i]][2];
+      tmp_box.y2 = tmp_boxes[indices[i]][3];
+      boxes.push_back(tmp_box);
+    }
     // api.detection(cv_ptr->image, boxes);
     std_msgs::Float32MultiArray sign_msg;
     sign_msg.layout.data_offset = 0;
@@ -254,6 +286,7 @@ private:
     }
     return 0.5 * (depths[(index20Percent - 1) / 2] + depths[index20Percent / 2]);
   }
+
 };
 
 int main(int argc, char** argv) {
