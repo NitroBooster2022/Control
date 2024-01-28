@@ -25,7 +25,7 @@ class LocalizationBridge {
             // σ^2 = (b - a)^2 / 12
             double pos_cov = std::pow(2*max_noise, 2) / 12;
             ROS_INFO("Position covariance: %f", pos_cov);
-            pos_cov += cov;
+            if(manual) pos_cov += cov;
             ROS_INFO("new Position covariance: %f", pos_cov);
             msg.pose.covariance[0] = pos_cov; // Variance for posA
             msg.pose.covariance[7] = pos_cov; // Variance for posB

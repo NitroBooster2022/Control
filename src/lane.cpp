@@ -10,7 +10,7 @@ using namespace std::chrono;
 class LaneDetector {
 public:
     LaneDetector(bool showflag, bool printflag) : it(nh), showflag(showflag), printflag(printflag){
-        image_sub = it.subscribe("/camera/image_raw", 1, &LaneDetector::imageCallback, this);
+        image_sub = it.subscribe("camera/image_raw", 1, &LaneDetector::imageCallback, this);
         // image_pub = it.advertise("/automobile/image_modified", 1);
         lane_pub = nh.advertise<utils::Lane>("/lane", 1);
         image = cv::Mat::zeros(480, 640, CV_8UC1);
@@ -186,6 +186,7 @@ int main(int argc, char** argv) {
     bool printFlag = false;
     
     // Loop through command line arguments
+    // -s to display image
     while ((opt = getopt(argc, argv, "hs:p:")) != -1) {
         switch (opt) {
             case 's':
@@ -207,6 +208,8 @@ int main(int argc, char** argv) {
                 exit(1);
         }
     }
+    std::string show = showFlag ? "True" : "False";
+    std::cout << "show is " << show << std::endl;
     ros::init(argc, argv, "CAMnod");
     LaneDetector laneDetector(showFlag, printFlag);
     return 0;
