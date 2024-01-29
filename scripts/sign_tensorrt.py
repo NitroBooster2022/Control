@@ -13,7 +13,7 @@ from std_msgs.msg import Header
 from utils.msg import Sign
 import tensorrt as trt
 import onnxruntime
-import lib.common as common
+import common
 
 class ObjectDetector():
     def __init__(self, show):
@@ -21,8 +21,8 @@ class ObjectDetector():
         # self.model = os.path.dirname(os.path.realpath(__file__)).replace("scripts", "models/np12s2.onnx")
         # self.model = os.path.dirname(os.path.realpath(__file__)).replace("scripts", "models/sissi9s.onnx")
         # self.model = os.path.dirname(os.path.realpath(__file__)).replace("scripts", "models/ningp10.onnx")
-        self.model = os.path.dirname(os.path.realpath(__file__)).replace("scripts", "models/")
-        print("Object detection using onnxruntime with: "+self.model)
+        self.model = os.path.dirname(os.path.realpath(__file__)).replace("scripts", "models/best.engine")
+        print("Object detection using tensorrt with: "+self.model)
         self.detector = InferenceModel(self.model, conf_thres=0.45, iou_thres=0.35)
         # self.net = cv2.dnn.readNet(self.model)
         self.class_names = ['oneway', 'highwayexit', 'stopsign', 'roundabout', 'park', 'crosswalk', 'noentry', 'highwayentrance', 'priority', 'light', 'block', 'girl', 'car']

@@ -111,6 +111,7 @@ class Logger : public nvinfer1::ILogger {
 class Engine {
 public:
     Engine(const Options& options);
+    std::string m_engineName;
     ~Engine();
     // Build the network
     // The default implementation will normalize values between [0.f, 1.f]
@@ -171,5 +172,5 @@ private:
     std::unique_ptr<nvinfer1::IExecutionContext> m_context = nullptr;
     const Options m_options;
     Logger m_logger;
-    std::string m_engineName;
+    
 };

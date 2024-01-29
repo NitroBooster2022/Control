@@ -1,5 +1,4 @@
 #include "ros/ros.h"
-#include "include/yolo-fastestv2.h"
 #include "cv_bridge/cv_bridge.h"
 #include <opencv2/core.hpp>
 #include <opencv2/core/types.hpp>
@@ -39,13 +38,8 @@ public:
 
     std::string filePathParam = __FILE__;
     size_t pos = filePathParam.rfind("/") + 1;
-    filePathParam.replace(pos, std::string::npos, "model/" + model + ".param");
-    const char* param = filePathParam.c_str();
-
-    std::string filePathBin = __FILE__;
-    pos = filePathBin.rfind("/") + 1;
-    filePathBin.replace(pos, std::string::npos, "model/" + model + ".bin");
-    const char* bin = filePathBin.c_str();
+    filePathParam.replace(pos,std::string::npos, "model/" + model + ".engine")
+    const char* modelPath = filePathParam.c_str();
 
     // Specify our GPU inference configuration options
     Options options;
@@ -61,7 +55,7 @@ public:
 
     Engine engine(options); //create engine object
 
-    engine.m_engineName = "models/" + model + "engine";
+    engine.m_engineName = modelPath;
 
     // Load the TensorRT engine file from disk
     bool succ = engine.loadNetwork();
