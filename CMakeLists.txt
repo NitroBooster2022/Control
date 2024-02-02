@@ -1,5 +1,5 @@
-# cmake_minimum_required(VERSION 3.0.2)
-cmake_minimum_required(VERSION 3.18)
+cmake_minimum_required(VERSION 3.0.2)
+# cmake_minimum_required(VERSION 3.18)
 project(control)
 
 set(CMAKE_CXX_STANDARD 17)
@@ -20,14 +20,15 @@ find_package(catkin REQUIRED COMPONENTS
   cv_bridge
   image_transport
   utils
-  cuda
+  # cuda
   # roslib
   # image_geometry
 )
 
 ## System dependencies are found with CMake's conventions
 # find_package(Boost REQUIRED COMPONENTS system)
-find_package(OpenCV REQUIRED)
+# find_package(OpenCV REQUIRED)
+find_package(CUDA REQUIRED)
 find_package (Eigen3 REQUIRED )
 # Set ncnn_DIR using the relative path
 set(ncnn_DIR ${CMAKE_CURRENT_SOURCE_DIR}/src/lib/cmake/ncnn)
@@ -42,29 +43,27 @@ set(ncnn_DIR ${CMAKE_CURRENT_SOURCE_DIR}/src/lib/cmake/ncnn)
 # For finding FindTensorRT.cmake
 set(CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/cmake" ${CMAKE_MODULE_PATH})
 
-# TODO: Specify the path to TensorRT root dir
-if (NOT TensorRT_DIR)
-    set(TensorRT_DIR /home/cyrus/work/libs/TensorRT-8.6.1.6/)
-endif()
-# Use the correct version of CUDA
-set(CUDA_TOOLKIT_ROOT_DIR /usr/local/cuda)
+# # TODO: Specify the path to TensorRT root dir
+# if (NOT TensorRT_DIR)
+#     set(TensorRT_DIR /home/cyrus/work/libs/TensorRT-8.6.1.6/)
+# endif()
+# # Use the correct version of CUDA
+# set(CUDA_TOOLKIT_ROOT_DIR /usr/local/cuda)
 
-# We require CUDA, OpenCV, and TensorRT
-find_package(TensorRT REQUIRED)
-find_package(CUDA REQUIRED)
-find_package(OpenCV REQUIRED)
+# add_library(tensorrt_cpp_api SHARED
+#         src/engine.cpp)
 
-add_library(tensorrt_cpp_api SHARED
-        src/engine.cpp)
+# target_include_directories(tensorrt_cpp_api PUBLIC ${OpenCV_INCLUDE_DIRS} ${CUDA_INCLUDE_DIRS} ${TensorRT_INCLUDE_DIRS})
+# target_link_libraries(tensorrt_cpp_api PUBLIC ${OpenCV_LIBS} ${CUDA_LIBRARIES} ${CMAKE_THREAD_LIBS_INIT} ${TensorRT_LIBRARIES})
 
-target_include_directories(tensorrt_cpp_api PUBLIC ${OpenCV_INCLUDE_DIRS} ${CUDA_INCLUDE_DIRS} ${TensorRT_INCLUDE_DIRS})
-target_link_libraries(tensorrt_cpp_api PUBLIC ${OpenCV_LIBS} ${CUDA_LIBRARIES} ${CMAKE_THREAD_LIBS_INIT} ${TensorRT_LIBRARIES})
-
-add_executable(run_inference_benchmark src/main.cpp)
-target_link_libraries(run_inference_benchmark tensorrt_cpp_api)
+# add_executable(run_inference_benchmark src/main.cpp)
+# target_link_libraries(run_inference_benchmark tensorrt_cpp_api)
 
 
-
+# # We require CUDA, OpenCV, and TensorRT
+# find_package(TensorRT REQUIRED)
+# find_package(CUDA REQUIRED)
+# find_package(OpenCV REQUIRED)
 
 find_package(ncnn REQUIRED)
 if (${ncnn_FOUND})
@@ -84,12 +83,12 @@ else()
     message("OpenCV not found")
 endif()
 
-## Generate messages in the 'msg' folder
-# add_message_files(
-#   FILES
-#   Lane.msg
-#   Sign.msg
-# )
+# Generate messages in the 'msg' folder
+add_message_files(
+  FILES
+  Lane.msg
+  Sign.msg
+)
 
 ## Generate services in the 'srv' folder
 add_service_files(
@@ -150,14 +149,14 @@ include_directories(
   # ${CMAKE_CURRENT_SOURCE_DIR}/src/control/src/include
 )
 
-# include_directories(/home/slsecret/TensorRT-8.6.1.6/include)
-# link_directories(/home/slsecret/TensorRT-8.6.1.6/lib)
+include_directories(/home/slsecret/TensorRT-8.6.1.6/include)
+link_directories(/home/slsecret/TensorRT-8.6.1.6/lib)
 
-# include_directories(/usr/local/cuda/targets/x86_64-linux/include)
-# link_directories(/usr/local/cuda/targets/x86_64-linux/lib)
+include_directories(/usr/local/cuda/targets/x86_64-linux/include)
+link_directories(/usr/local/cuda/targets/x86_64-linux/lib)
 
-# include_directories(/usr/local/include/opencv2)
-# link_directories(/usr/local/lib)
+include_directories(/usr/local/include/opencv2)
+link_directories(/usr/local/lib)
 
 # add_executable(camera
 #   src/camera.cpp
@@ -176,11 +175,11 @@ include_directories(
 #   src/signFastest.cpp
 #   src/yolo-fastestv2.cpp
 # )
-add_executable(signTRT2
-src/signTRT2.cpp
-src/engine.cpp
-src/yolo-fastestv2.cpp
-)
+# add_executable(signTRT2
+# src/signTRT2.cpp
+# src/engine.cpp
+# src/yolo-fastestv2.cpp
+# )
 add_executable(bridge
   src/localization_bridge.cpp
 )
@@ -218,9 +217,9 @@ add_executable(bridge
 target_link_libraries(bridge
   ${catkin_LIBRARIES}
 )
-target_link_libraries(signTRT2
-  ${catkin_LIBRARIES}
-)
+# target_link_libraries(signTRT2
+#   ${catkin_LIBRARIES}
+# )
 # target_link_libraries(cameraNode
 #   ${catkin_LIBRARIES}
 #   ncnn ${OpenCV_LIBS}
@@ -244,6 +243,7 @@ target_link_libraries(signTRT2
 catkin_install_python(PROGRAMS
   scripts/lane.py
   scripts/sign_onnx.py
+  scripts/lib/color_ident.py
   scripts/sign_tensorrt.py
   # scripts/realSensePub.py
   # scripts/trackObjectDistance.py

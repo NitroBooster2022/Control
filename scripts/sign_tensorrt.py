@@ -10,10 +10,384 @@ from sensor_msgs.msg import Image, CompressedImage
 from cv_bridge import CvBridge, CvBridgeError
 # from pynput import keyboard
 from std_msgs.msg import Header
-from utils.msg import Sign
+from utils.msg import Sign, Light
 import tensorrt as trt
 import onnxruntime
-import common
+
+
+
+# -------------------helpers----------------------------------------------------
+#
+# Copyright 1993-2020 NVIDIA Corporation.  All rights reserved.
+#
+# NOTICE TO LICENSEE:
+#
+# This source code and/or documentation ("Licensed Deliverables") are
+# subject to NVIDIA intellectual property rights under U.S. and
+# international Copyright laws.
+#
+# These Licensed Deliverables contained herein is PROPRIETARY and
+# CONFIDENTIAL to NVIDIA and is being provided under the terms and
+# conditions of a form of NVIDIA software license agreement by and
+# between NVIDIA and Licensee ("License Agreement") or electronically
+# accepted by Licensee.  Notwithstanding any terms or conditions to
+# the contrary in the License Agreement, reproduction or disclosure
+# of the Licensed Deliverables to any third party without the express
+# written consent of NVIDIA is prohibited.
+#
+# NOTWITHSTANDING ANY TERMS OR CONDITIONS TO THE CONTRARY IN THE
+# LICENSE AGREEMENT, NVIDIA MAKES NO REPRESENTATION ABOUT THE
+# SUITABILITY OF THESE LICENSED DELIVERABLES FOR ANY PURPOSE.  IT IS
+# PROVIDED "AS IS" WITHOUT EXPRESS OR IMPLIED WARRANTY OF ANY KIND.
+# NVIDIA DISCLAIMS ALL WARRANTIES WITH REGARD TO THESE LICENSED
+# DELIVERABLES, INCLUDING ALL IMPLIED WARRANTIES OF MERCHANTABILITY,
+# NONINFRINGEMENT, AND FITNESS FOR A PARTICULAR PURPOSE.
+# NOTWITHSTANDING ANY TERMS OR CONDITIONS TO THE CONTRARY IN THE
+# LICENSE AGREEMENT, IN NO EVENT SHALL NVIDIA BE LIABLE FOR ANY
+# SPECIAL, INDIRECT, INCIDENTAL, OR CONSEQUENTIAL DAMAGES, OR ANY
+# DAMAGES WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS,
+# WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS
+# ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE
+# OF THESE LICENSED DELIVERABLES.
+#
+# U.S. Government End Users.  These Licensed Deliverables are a
+# "commercial item" as that term is defined at 48 C.F.R. 2.101 (OCT
+# 1995), consisting of "commercial computer software" and "commercial
+# computer software documentation" as such terms are used in 48
+# C.F.R. 12.212 (SEPT 1995) and is provided to the U.S. Government
+# only as a commercial end item.  Consistent with 48 C.F.R.12.212 and
+# 48 C.F.R. 227.7202-1 through 227.7202-4 (JUNE 1995), all
+# U.S. Government End Users acquire the Licensed Deliverables with
+# only those rights set forth herein.
+#
+# Any use of the Licensed Deliverables in individual and commercial
+# software must include, in the user documentation and internal
+# comments to the code, the above Disclaimer and U.S. Government End
+# Users Notice.
+#
+
+from itertools import chain
+import argparse
+import os
+
+import pycuda.driver as cuda
+# import pycuda.autoinit
+cuda.init()
+device = cuda.Device(0)
+ctx = device.make_context()
+import numpy as np
+
+import tensorrt as trt
+
+try:
+    # Sometimes python2 does not understand FileNotFoundError
+    FileNotFoundError
+except NameError:
+    FileNotFoundError = IOError
+
+EXPLICIT_BATCH = 1 << (int)(trt.NetworkDefinitionCreationFlag.EXPLICIT_BATCH)
+
+def GiB(val):
+    return val * 1 << 30
+
+
+def add_help(description):
+    parser = argparse.ArgumentParser(description=description, formatter_class=argparse.ArgumentDefaultsHelpFormatter)
+    args, _ = parser.parse_known_args()
+
+
+def find_sample_data(description="Runs a TensorRT Python sample", subfolder="", find_files=[]):
+    '''
+    Parses sample arguments.
+
+    Args:
+        description (str): Description of the sample.
+        subfolder (str): The subfolder containing data relevant to this sample
+        find_files (str): A list of filenames to find. Each filename will be replaced with an absolute path.
+
+    Returns:
+        str: Path of data directory.
+    '''
+
+    # Standard command-line arguments for all samples.
+    kDEFAULT_DATA_ROOT = os.path.join(os.sep, "usr", "src", "tensorrt", "data")
+    parser = argparse.ArgumentParser(description=description, formatter_class=argparse.ArgumentDefaultsHelpFormatter)
+    parser.add_argument("-d", "--datadir", help="Location of the TensorRT sample data directory, and any additional data directories.", action="append", default=[kDEFAULT_DATA_ROOT])
+    args, _ = parser.parse_known_args()
+
+    def get_data_path(data_dir):
+        # If the subfolder exists, append it to the path, otherwise use the provided path as-is.
+        data_path = os.path.join(data_dir, subfolder)
+        if not os.path.exists(data_path):
+            print("WARNING: " + data_path + " does not exist. Trying " + data_dir + " instead.")
+            data_path = data_dir
+        # Make sure data directory exists.
+        if not (os.path.exists(data_path)):
+            print("WARNING: {:} does not exist. Please provide the correct data path with the -d option.".format(data_path))
+        return data_path
+
+    data_paths = [get_data_path(data_dir) for data_dir in args.datadir]
+    return data_paths, locate_files(data_paths, find_files)
+
+def locate_files(data_paths, filenames):
+    """
+    Locates the specified files in the specified data directories.
+    If a file exists in multiple data directories, the first directory is used.
+
+    Args:
+        data_paths (List[str]): The data directories.
+        filename (List[str]): The names of the files to find.
+
+    Returns:
+        List[str]: The absolute paths of the files.
+
+    Raises:
+        FileNotFoundError if a file could not be located.
+    """
+    found_files = [None] * len(filenames)
+    for data_path in data_paths:
+        # Find all requested files.
+        for index, (found, filename) in enumerate(zip(found_files, filenames)):
+            if not found:
+                file_path = os.path.abspath(os.path.join(data_path, filename))
+                if os.path.exists(file_path):
+                    found_files[index] = file_path
+
+    # Check that all files were found
+    for f, filename in zip(found_files, filenames):
+        if not f or not os.path.exists(f):
+            raise FileNotFoundError("Could not find {:}. Searched in data paths: {:}".format(filename, data_paths))
+    return found_files
+
+# Simple helper data class that's a little nicer to use than a 2-tuple.
+class HostDeviceMem(object):
+    def __init__(self, host_mem, device_mem):
+        self.host = host_mem
+        self.device = device_mem
+
+    def __str__(self):
+        return "Host:\n" + str(self.host) + "\nDevice:\n" + str(self.device)
+
+    def __repr__(self):
+        return self.__str__()
+
+# Allocates all buffers required for an engine, i.e. host/device inputs/outputs.
+def allocate_buffers(engine):
+    inputs = []
+    outputs = []
+    bindings = []
+    stream = cuda.Stream()
+    for binding in engine:
+        size = trt.volume(engine.get_binding_shape(binding)) * engine.max_batch_size
+        dtype = trt.nptype(engine.get_binding_dtype(binding))
+        # Allocate host and device buffers
+        host_mem = cuda.pagelocked_empty(size, dtype)
+        device_mem = cuda.mem_alloc(host_mem.nbytes)
+        # Append the device buffer to device bindings.
+        bindings.append(int(device_mem))
+        # Append to the appropriate list.
+        if engine.binding_is_input(binding):
+            inputs.append(HostDeviceMem(host_mem, device_mem))
+        else:
+            outputs.append(HostDeviceMem(host_mem, device_mem))
+    return inputs, outputs, bindings, stream
+
+# This function is generalized for multiple inputs/outputs.
+# inputs and outputs are expected to be lists of HostDeviceMem objects.
+def do_inference(context, bindings, inputs, outputs, stream, batch_size=1):
+    # Transfer input data to the GPU.
+    [cuda.memcpy_htod_async(inp.device, inp.host, stream) for inp in inputs]
+    # Run inference.
+    context.execute_async(batch_size=batch_size, bindings=bindings, stream_handle=stream.handle)
+    # Transfer predictions back from the GPU.
+    [cuda.memcpy_dtoh_async(out.host, out.device, stream) for out in outputs]
+    # Synchronize the stream
+    stream.synchronize()
+    # Return only the host outputs.
+    return [out.host for out in outputs]
+
+# This function is generalized for multiple inputs/outputs for full dimension networks.
+# inputs and outputs are expected to be lists of HostDeviceMem objects.
+# mmodified 02/02: show TRT inference using onnx - Error Code 1: Cuda Driver (invalid resource handle), cuda_ctx added
+def do_inference_v2(cuda_ctx, context, bindings, inputs, outputs, stream):
+    cuda_ctx.push()
+    # Transfer input data to the GPU.
+    [cuda.memcpy_htod_async(inp.device, inp.host, stream) for inp in inputs]
+    # Run inference.
+    context.execute_async_v2(bindings=bindings, stream_handle=stream.handle)
+    # Transfer predictions back from the GPU.
+    [cuda.memcpy_dtoh_async(out.host, out.device, stream) for out in outputs]
+    # Synchronize the stream
+    stream.synchronize()
+    cuda_ctx.pop()
+    # Return only the host outputs.
+    return [out.host for out in outputs]
+
+def getColor(img,img_hsv,color):
+    
+   
+    lower_red = np.array([170,80,80])
+    upper_red = np.array([179,255,255])
+    
+    lower_green = np.array([40,80,80])
+    upper_green = np.array([90,255,255])
+    
+    lower_yellow = np.array([25,80,80])
+    upper_yellow = np.array([35,255,255])
+    
+    # Threshold the HSV image to get only rgb colors
+    if color.__eq__("red"):
+        mask = cv2.inRange(img_hsv, lower_red, upper_red) + cv2.inRange(img_hsv, np.array([0,80,80]), np.array([20,255,255]))
+    elif color.__eq__("green"):
+        mask = cv2.inRange(img_hsv, lower_green, upper_green)
+    elif color.__eq__("yellow"):
+        mask = cv2.inRange(img_hsv, lower_yellow, upper_yellow)
+    else:
+        print("no such color, use red/green/yellow")
+        return
+    
+    kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (8,8))
+    mask_1 = cv2.morphologyEx(mask, cv2.MORPH_OPEN, kernel)
+
+    # cv2.imshow("mask",mask_1)
+    # cv2.waitKey(0)
+    # Find contours of the colored areas
+    contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+    # print(contours)   
+    largest = 10
+    crop_contour = None
+    for contour in contours:
+        
+        area = cv2.contourArea(contour)
+        # print(area)
+        if area > largest:
+            largest = area
+            # print(largest)
+            crop_contour = contour
+    if largest > 10:
+        height,width = cv2.split(crop_contour)
+        crop_hmax = np.max(height)
+        crop_hmin = np.min(height)
+        crop_wmax = np.max(width)
+        crop_wmin = np.min(width)
+        
+        
+        # Bitwise-AND mask and original image
+        res = cv2.bitwise_and(img_hsv,img_hsv, mask = mask_1)
+        crop_res = res[crop_wmin:crop_wmax,crop_hmin:crop_hmax]
+        # crop_black = np.delete(crop_res,np.where(crop_res == [0,0,0]),axis=None)
+        _,s,v = cv2.split(crop_res)
+        
+        # h = np.delete(h,np.where(v <= 20),None)
+        # hue = np.mean(h)
+        
+        s = np.delete(s,np.where(v <= 80),None)
+        v = np.delete(v,np.where(v <= 80),None)
+        
+        res = cv2.bitwise_and(img,img, mask = mask_1)
+        crop_img = res[crop_wmin:crop_wmax,crop_hmin:crop_hmax]
+        b,g,r = cv2.split(crop_img)
+        
+        b = b.flatten()
+        g = g.flatten()
+        r = r.flatten()
+        
+        if color=="red":
+            r = np.delete(r,np.where(r <= 50),None)
+            g = np.delete(g,np.where(r <= 50),None)
+            b = np.delete(b,np.where(r <= 50),None)
+        elif color=="green":
+            r = np.delete(r,np.where(g <= 50),None)
+            g = np.delete(g,np.where(g <= 50),None)
+            b = np.delete(b,np.where(g <= 50),None)
+        elif color=="yellow":
+            r = np.delete(r,np.where(g <= 50) and np.where(r<=50),None)
+            g = np.delete(g,np.where(g <= 50)and np.where(r<=50),None)
+            b = np.delete(b,np.where(g <= 50)and np.where(r<=50),None)
+        
+        # print("ck1")
+        b_mean = np.mean(b)
+        g_mean = np.mean(g)
+        r_mean = np.mean(r)
+        
+        sat_mean = np.mean(s)
+        val_mean = np.mean(v)
+        
+        
+        # sat_bright = np.mean(v)
+        
+        
+        
+
+        # gray_img = cv2.cvtColor(img,cv2.COLOR_BGR2GRAY)
+        # gray_crop = gray_img[crop_wmin:crop_wmax,crop_hmin:crop_hmax]
+        # sat_bright = np.mean((gray_crop))
+        # print(sat_bright)
+        
+        # cv2.imshow("gray",gray_crop)
+        # cv2.imshow("mask",mask_1)
+        # cv2.waitKey(0)
+    else:
+        b_mean = 0
+        g_mean = 0
+        r_mean = 0
+        
+        sat_mean = 0
+        val_mean = 0
+        # hue = 0
+    
+    
+      
+    return b_mean,g_mean,r_mean,sat_mean,val_mean
+    # return hue, sat_mean,val_mean
+
+def predict(strR,strG,strY):
+    
+    max = np.max([strR,strG*1.05,strY])
+    # print(max)
+    if max == strR:
+        return 1 #"red"
+    elif max == strG*1.05:
+        return 2 #"green"
+    elif max == strY:
+        return 2 #"green"
+    else:
+        return 3 #"undetermined"
+
+def lightColor_identify(img):
+    # t1 = time.time()
+    img = cv2.GaussianBlur(img,(5,5),0)
+    # img = img[int(w*0.2):int(w*0.8),int(h*0.2):int(h*0.8)]
+    img_hsv = cv2.cvtColor(img,cv2.COLOR_BGR2HSV)
+    
+    b_red,g_red,r_red,sat_red,val_red = getColor(img,img_hsv,"red")
+    b_green,g_green,r_green,sat_green,val_green = getColor(img,img_hsv,"green")
+    b_yellow,g_yellow,r_yellow,sat_yellow,val_yellow = getColor(img,img_hsv,"yellow")
+    # hue_red,sat_red,val_red = getColor(img,img_hsv,"red")
+    # hue_green,sat_green,val_green = getColor(img,img_hsv,"green")
+    # hue_yellow,sat_yellow,val_yellow = getColor(img,img_hsv,"yellow")
+    
+    red = 0
+    green = 0
+    yellow = 0
+    if sat_red>0:
+        red = (r_red+g_red)*val_red/sat_red
+    if sat_green>0:
+        green = (g_green+b_green)*val_green/sat_green 
+    if sat_yellow>0:
+        yellow = (r_yellow+g_yellow)/2*val_yellow/sat_yellow    
+    
+    print(red,green,yellow)
+    light_color = predict(red,green,yellow)
+    # cv2.imshow("mask",mask_y+mask_g+mask_r)
+    # cv2.waitKey(0)
+    
+    # print("the color of the light is " + light_color)
+
+    return light_color
+    
+# ----------------------------------------helpers end-------------------------------------------------------
+
 
 class ObjectDetector():
     def __init__(self, show):
@@ -28,10 +402,12 @@ class ObjectDetector():
         self.class_names = ['oneway', 'highwayexit', 'stopsign', 'roundabout', 'park', 'crosswalk', 'noentry', 'highwayentrance', 'priority', 'light', 'block', 'girl', 'car']
         rospy.init_node('object_detection_node', anonymous=True)
         self.bridge = CvBridge()
-        self.image_sub = rospy.Subscriber("/automobile/image_raw", Image, self.image_callback)
+        self.image_sub = rospy.Subscriber("/camera/image_raw", Image, self.image_callback)
         # self.image_sub = rospy.Subscriber("automobile/image_raw/compressed", CompressedImage, self.image_callback)
         self.pub = rospy.Publisher("sign", Sign, queue_size = 3)
+        self.light_pub = rospy.Publisher("light",Light, queue_size=3)
         self.p = Sign()
+        self.light_color = Light()
         self.rate = rospy.Rate(15)
 
     def image_callback(self, data):
@@ -42,7 +418,7 @@ class ObjectDetector():
         t1 = time.time()
         # Convert the image to the OpenCV format
         image = self.bridge.imgmsg_to_cv2(data, "bgr8")
-
+        self.show = True
          # Update the header information
         header = Header()
         header.seq = data.header.seq
@@ -53,6 +429,30 @@ class ObjectDetector():
 
         # self.class_ids, __, self.boxes = self.detect(image, self.class_list, show=self.show)
         self.boxes, self.scores, self.class_ids = self.detector(image)
+        color = 0
+        if (9 in self.class_ids):
+            indices = [index for index, element in enumerate(self.class_ids) if element == 9]
+            closest_tl = 0
+            tl_area = 0
+            for index in indices:
+                x1 = int(self.boxes[index][2])
+                x2 = int(self.boxes[index][0])
+                y1 = int(self.boxes[index][3])
+                y2 = int(self.boxes[index][1])
+                if tl_area < (x2-x1)*(y2-y1):
+                    closest_tl = index
+            x1 = int(self.boxes[closest_tl][2])
+            x2 = int(self.boxes[closest_tl][0])
+            y1 = int(self.boxes[closest_tl][3])
+            y2 = int(self.boxes[closest_tl][1])
+            # print(x1,x2,y1,y2)
+            
+            tlimg = image[y2:y1,x2:x1]
+            color = lightColor_identify(tlimg)
+        self.light_color.header = header
+        self.light_color.light_color = color
+        self.light_pub.publish(self.light_color)
+
         if self.show:
             img = draw_detections(image, self.boxes, self.scores, self.class_ids)
             # cv2.rectangle(image, (100, 100), (200, 300), (255,0,0), 2)
@@ -80,7 +480,8 @@ class ObjectDetector():
             # print("height1, width1: ", height1, width1, self.class_names[self.class_ids[0]])
             self.p.box1 = self.boxes[0]
 
-        # print(self.p)
+        
+        
         self.pub.publish(self.p)
         print("time: ",time.time()-t1)
 
@@ -114,8 +515,9 @@ class InferenceModel:
         # print(type(self.engine))
         #inference
         self.context = self.engine.create_execution_context()
+        
         #buffer pointer for input and ouputs
-        self.inputs, self.outputs, self.bindings, self.stream = common.allocate_buffers(self.engine)
+        self.inputs, self.outputs, self.bindings, self.stream = allocate_buffers(self.engine)
         
         # self.trt_results = common.do_inference_v2(self.context, bindings=self.bindings, inputs=self.inputs, outputs=self.outputs, stream=self.stream)
         
@@ -162,14 +564,17 @@ class InferenceModel:
         # input_img = input_img.transpose(2, 0, 1)
         # input_tensor = input_img[np.newaxis, :, :, :].astype(np.float32)
         self.inputs[0].host = input_img
+        # print(len(self.inputs))
         # return input_tensor 
 
 
     def inference(self):
         start = time.perf_counter()
         # self.inputs[0].host = input_tensor
-        trt_outputs = common.do_inference_v2(self.context,bindings=self.bindings,inputs = self.inputs,outputs=self.outputs,stream=self.stream)
-
+        # self.outputs.clear()
+        # self.bindings.clear()
+        # print("ck1")
+        trt_outputs = do_inference_v2(cuda_ctx=ctx,context=self.context,bindings=self.bindings,inputs = self.inputs,outputs=self.outputs,stream=self.stream)
         print(f"Inference time: {(time.perf_counter() - start)*1000:.2f} ms")
         trt_outputs = [output.reshape(self.output_shapes[0][0]) for output in trt_outputs]
         return trt_outputs

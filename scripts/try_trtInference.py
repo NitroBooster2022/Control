@@ -58,6 +58,7 @@ class ObjectDetector():
             # cv2.rectangle(image, (100, 100), (200, 300), (255,0,0), 2)
             cv2.imshow('sign', img)
             cv2.waitKey(0)
+            
         # self.p.objects = self.class_ids
         # self.p.num = len(self.class_ids)
         # if self.p.num>=2:
@@ -73,13 +74,16 @@ class ObjectDetector():
             self.boxes[1][3] = height2
             # self.p.box1 = self.boxes[0]
             # self.p.box2 = self.boxes[1]
-        elif self.p.num>=1:
-            height1 = self.boxes[0][3]-self.boxes[0][1]
-            width1 = self.boxes[0][2]-self.boxes[0][0]
-            self.boxes[0][2] = width1
-            self.boxes[0][3] = height1
+        # elif self.p.num>=1:
+        #     height1 = self.boxes[0][3]-self.boxes[0][1]
+        #     width1 = self.boxes[0][2]-self.boxes[0][0]
+        #     self.boxes[0][2] = width1
+        #     self.boxes[0][3] = height1
             # print("height1, width1: ", height1, width1, self.class_names[self.class_ids[0]])
             # self.p.box1 = self.boxes[0]
+        print(self.class_ids)
+        print(self.boxes)
+        print(self.class_names)
         print("time: ",time.time()-t1)
 
 #detector class
@@ -168,7 +172,7 @@ class InferenceModel:
         # self.inputs[0].host = input_tensor
         trt_outputs = common.do_inference_v2(self.context,bindings=self.bindings,inputs = self.inputs,outputs=self.outputs,stream=self.stream)
 
-        print(f"Inference time: {(time.perf_counter() - start)*1000:.2f} ms")
+        # print(f"Inference time: {(time.perf_counter() - start)*1000:.2f} ms")
         trt_outputs = [output.reshape(self.output_shapes[0][0]) for output in trt_outputs]
         return trt_outputs
 
@@ -401,8 +405,8 @@ if __name__ == '__main__':
     # except rospy.ROSInterruptException:
     #     cv2.destroyAllWindows()
     try:
-        image = cv2.imread('C:/Users/simon/Downloads/linxy/coco_dataset/coco_retrieved/images/train/1.jpg')
-        detect = ObjectDetector(path='C:/Users/simon/Downloads/linxy/YOLOv8/try3_26/detect/train/weights/best.engine', show=True)
+        image = cv2.imread('/media/slsecret/E624108524105B3F/Users/simon/Downloads/linxy/cityscape/YOLOformat/bg_processed/16.png')
+        detect = ObjectDetector(path='/home/slsecret/Documents/BFMC/Control/models/best.engine', show=True)
         detect.image_callback(image)
     except Exception as e:
         print(e)
