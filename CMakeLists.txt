@@ -1,12 +1,12 @@
 cmake_minimum_required(VERSION 3.0.2)
 project(control)
 
-## Compile as C++11, supported in ROS Kinetic and newer
-# add_compile_options(-std=c++11)
-
-## Find catkin macros and libraries
-## if COMPONENTS list like find_package(catkin REQUIRED COMPONENTS xyz)
-## is used, also find other catkin packages
+find_package(OpenCV 4.2.0 REQUIRED)
+if(OpenCV_FOUND)
+  message(STATUS "Found Opencv ${OpenCV_VERSION}, include dirs: ${OpenCV_INCLUDE_DIRS}")
+else()
+  message(FATAL_ERROR "cant find opencv.")
+endif()
 find_package(catkin REQUIRED COMPONENTS
   geometry_msgs
   roscpp
@@ -15,47 +15,15 @@ find_package(catkin REQUIRED COMPONENTS
   tf2
   tf2_geometry_msgs
   tf2_ros
-  turtlesim
   message_generation
   sensor_msgs
   cv_bridge
   image_transport
-  # roslib
-  # image_geometry
 )
 
 ## System dependencies are found with CMake's conventions
 # find_package(Boost REQUIRED COMPONENTS system)
-find_package(OpenCV REQUIRED)
 
-## Uncomment this if the package has a setup.py. This macro ensures
-## modules and global scripts declared therein get installed
-## See http://ros.org/doc/api/catkin/html/user_guide/setup_dot_py.html
-# catkin_python_setup()
-
-################################################
-## Declare ROS messages, services and actions ##
-################################################
-
-## To declare and build messages, services or actions from within this
-## package, follow these steps:
-## * Let MSG_DEP_SET be the set of packages whose message types you use in
-##   your messages/services/actions (e.g. std_msgs, actionlib_msgs, ...).
-## * In the file package.xml:
-##   * add a build_depend tag for "message_generation"
-##   * add a build_depend and a exec_depend tag for each package in MSG_DEP_SET
-##   * If MSG_DEP_SET isn't empty the following dependency has been pulled in
-##     but can be declared for certainty nonetheless:
-##     * add a exec_depend tag for "message_runtime"
-## * In this file (CMakeLists.txt):
-##   * add "message_generation" and every package in MSG_DEP_SET to
-##     find_package(catkin REQUIRED COMPONENTS ...)
-##   * add "message_runtime" and every package in MSG_DEP_SET to
-##     catkin_package(CATKIN_DEPENDS ...)
-##   * uncomment the add_*_files sections below as needed
-##     and list every .msg/.srv/.action file to be processed
-##   * uncomment the generate_messages entry below
-##   * add every package in MSG_DEP_SET to generate_messages(DEPENDENCIES ...)
 
 ## Generate messages in the 'msg' folder
 # add_message_files(
@@ -86,35 +54,6 @@ generate_messages(
   std_msgs#   tf2_geometry_msgs
 )
 
-################################################
-## Declare ROS dynamic reconfigure parameters ##
-################################################
-
-## To declare and build dynamic reconfigure parameters within this
-## package, follow these steps:
-## * In the file package.xml:
-##   * add a build_depend and a exec_depend tag for "dynamic_reconfigure"
-## * In this file (CMakeLists.txt):
-##   * add "dynamic_reconfigure" to
-##     find_package(catkin REQUIRED COMPONENTS ...)
-##   * uncomment the "generate_dynamic_reconfigure_options" section below
-##     and list every .cfg file to be processed
-
-## Generate dynamic reconfigure parameters in the 'cfg' folder
-# generate_dynamic_reconfigure_options(
-#   cfg/DynReconf1.cfg
-#   cfg/DynReconf2.cfg
-# )
-
-###################################
-## catkin specific configuration ##
-###################################
-## The catkin_package macro generates cmake config files for your package
-## Declare things to be passed to dependent projects
-## INCLUDE_DIRS: uncomment this if your package contains header files
-## LIBRARIES: libraries you create in this project that dependent projects also need
-## CATKIN_DEPENDS: catkin_packages dependent projects also need
-## DEPENDS: system dependencies of this project that dependent projects also need
 catkin_package(
 #  INCLUDE_DIRS include
 #  LIBRARIES control
@@ -126,12 +65,11 @@ catkin_package(
  tf2
  tf2_geometry_msgs
  tf2_ros
- turtlesim
  message_runtime
  image_transport
  cv_bridge
  sensor_msgs
- opencv2
+#  opencv2
 #  roslib
 #  image_geometry
 #  message_generation
@@ -147,7 +85,7 @@ catkin_package(
 include_directories(
   "include"
   src/include 
-  include/ncnn
+  # include/ncnn
   ${catkin_INCLUDE_DIRS}
   ${CMAKE_CURRENT_SOURCE_DIR}/src/control/src/include
   ${OpenCV_INCLUDE_DIRS}
@@ -155,22 +93,22 @@ include_directories(
 )
 
 # Set ncnn_DIR using the relative path
-set(ncnn_DIR ${CMAKE_CURRENT_SOURCE_DIR}/src/lib/cmake/ncnn)
+# set(ncnn_DIR ${CMAKE_CURRENT_SOURCE_DIR}/src/lib/cmake/ncnn)
 
-find_package(ncnn REQUIRED)
-if (${ncnn_FOUND})
-  message("-- NCNN found.")
-  message("-- NCNN_VULKAN flag is ${NCNN_VULKAN}")
-  if (${NCNN_VULKAN})
-    message("-- AUTO-ENABLING GPU_SUPPORT")
-    set(GPU_SUPPORT ON)
-  endif()
-  include_directories(${ncnn_INCLUDE})
-endif()
+# find_package(ncnn REQUIRED)
+# if (${ncnn_FOUND})
+#   message("-- NCNN found.")
+#   message("-- NCNN_VULKAN flag is ${NCNN_VULKAN}")
+#   if (${NCNN_VULKAN})
+#     message("-- AUTO-ENABLING GPU_SUPPORT")
+#     set(GPU_SUPPORT ON)
+#   endif()
+#   include_directories(${ncnn_INCLUDE})
+# endif()
 
-find_package(OpenCV REQUIRED COMPONENTS
-  core highgui imgproc imgcodecs
-)
+# find_package(OpenCV REQUIRED COMPONENTS
+#   core highgui imgproc imgcodecs
+# )
 
 ## Declare a C++ library
 
@@ -190,23 +128,23 @@ find_package(OpenCV REQUIRED COMPONENTS
 # add_executable(statemachine
 #   src/statemachine.cpp
 # )
-add_executable(camera
-  src/camera.cpp
-)
-add_executable(cameraExample
-  src/cameraExample.cpp
-  src/yolo-fastestv2.cpp
-)
+# add_executable(camera
+#   src/camera.cpp
+# )
+# add_executable(cameraExample
+#   src/cameraExample.cpp
+#   src/yolo-fastestv2.cpp
+# )
 add_executable(lane
   src/lane.cpp
 )
-add_executable(sign
-  src/sign.cpp
-)
-add_executable(signFastest
-  src/signFastest.cpp
-  src/yolo-fastestv2.cpp
-)
+# add_executable(sign
+#   src/sign.cpp
+# )
+# add_executable(signFastest
+#   src/signFastest.cpp
+#   src/yolo-fastestv2.cpp
+# )
 # add_executable(cameraNode
 #   src/cameraNode.cpp
 #   src/include/raspicam/raspicam_cv.cpp
@@ -239,23 +177,24 @@ add_executable(signFastest
 # target_link_libraries(statemachine
 #   ${catkin_LIBRARIES}
 # )
-target_link_libraries(camera
-  ${catkin_LIBRARIES}
-)
-target_link_libraries(cameraExample
-  ${catkin_LIBRARIES}
-  ncnn ${OpenCV_LIBS}
-)
+# target_link_libraries(camera
+#   ${catkin_LIBRARIES}
+# )
+# target_link_libraries(cameraExample
+#   ${catkin_LIBRARIES}
+#   ncnn ${OpenCV_LIBS}
+# )
 target_link_libraries(lane
   ${catkin_LIBRARIES}
+  ${OpenCV_LIBS}
 )
-target_link_libraries(sign
-  ${catkin_LIBRARIES}
-)
-target_link_libraries(signFastest
-  ${catkin_LIBRARIES}
-  ncnn ${OpenCV_LIBS}
-)
+# target_link_libraries(sign
+#   ${catkin_LIBRARIES}
+# )
+# target_link_libraries(signFastest
+#   ${catkin_LIBRARIES}
+#   ncnn ${OpenCV_LIBS}
+# )
 # target_link_libraries(cameraNode
 #   ${catkin_LIBRARIES}
 #   ncnn ${OpenCV_LIBS}

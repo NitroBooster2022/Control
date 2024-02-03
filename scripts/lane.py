@@ -60,7 +60,7 @@ class LaneDetector():
         self.p = Lane()
         self.bridge = CvBridge()
 
-        self.image_sub = rospy.Subscriber("automobile/image_raw", Image, self.image_callback)
+        self.image_sub = rospy.Subscriber("/camera/color/image_raw", Image, self.image_callback)
         # self.image_sub = rospy.Subscriber("/camera/color/image_raw", Image, self.image_callback)
         # self.image_sub = rospy.Subscriber("/camera/color/image_raw/compressed", CompressedImage, self.image_callback)
         # self.image_sub = rospy.Subscriber("automobile/image_raw/compressed", CompressedImage, self.image_callback)
@@ -96,6 +96,9 @@ class LaneDetector():
         # Convert the image to the OpenCV format
         # image = self.bridge.compressed_imgmsg_to_cv2(data, "bgr8")
         self.image = self.bridge.imgmsg_to_cv2(data, "rgb8")
+        desired_width = 640
+        desired_height = 480
+        self.image = cv2.resize(self.image, (desired_width, desired_height))
 
         #determine whether left lane is dotted (will make it a service)
         self.dotted = self.dotted_lines(self.image)
@@ -108,8 +111,8 @@ class LaneDetector():
         else:
             lanes = self.hough_lines(self.image, show=self.show)
         
-        # self.avg_time.append(time.time()-t1)
-        # print("average time: ", sum(self.avg_time)/len(self.avg_time))
+        self.avg_time.append(time.time()-t1)
+        print("average time: ", sum(self.avg_time)/len(self.avg_time))
         
         # print("center, old: ",lanes)
         # # if there's a big shift in lane center: ignore due to delay

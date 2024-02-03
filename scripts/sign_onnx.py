@@ -27,6 +27,7 @@ class ObjectDetector():
         rospy.init_node('object_detection_node', anonymous=True)
         self.bridge = CvBridge()
         self.image_sub = rospy.Subscriber("/automobile/image_raw", Image, self.image_callback)
+        self.image_sub = rospy.Subscriber("/camera/color/image_raw", Image, self.image_callback)
         # self.image_sub = rospy.Subscriber("automobile/image_raw/compressed", CompressedImage, self.image_callback)
         self.pub = rospy.Publisher("sign", Sign, queue_size = 3)
         self.p = Sign()

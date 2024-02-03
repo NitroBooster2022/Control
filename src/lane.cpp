@@ -10,7 +10,7 @@ using namespace std::chrono;
 class LaneDetector {
 public:
     LaneDetector(bool showflag, bool printflag) : it(nh), showflag(showflag), printflag(printflag){
-        image_sub = it.subscribe("/camera/image_raw", 1, &LaneDetector::imageCallback, this);
+        image_sub = it.subscribe("/camera/color/image_raw", 1, &LaneDetector::imageCallback, this);
         // image_pub = it.advertise("/automobile/image_modified", 1);
         lane_pub = nh.advertise<utils::Lane>("/lane", 1);
         image = cv::Mat::zeros(480, 640, CV_8UC1);
@@ -26,6 +26,7 @@ public:
     void imageCallback(const sensor_msgs::ImageConstPtr& msg) {
         try {
             cv::Mat cv_image = cv_bridge::toCvShare(msg, "bgr8")->image;
+            // ROS_INFO("Original Image Dimensions: Width = %d, Height = %d", original_width, original_height);
             // auto start = high_resolution_clock::now();
             double center = optimized_histogram(cv_image, showflag, printflag);
             // auto stop = high_resolution_clock::now();
@@ -86,6 +87,7 @@ public:
         double threshold_value = std::min(std::max(maxVal - 55.0, 30.0), 200.0);
         cv::threshold(img_roi, thresh, threshold_value, 255, cv::THRESH_BINARY);
         hist = cv::Mat::zeros(1, w, CV_32SC1);
+
         cv::reduce(thresh, hist, 0, cv::REDUCE_SUM, CV_32S);
 
         // apply masks
@@ -131,27 +133,36 @@ public:
 
         if (show) {
             // Create the new cv::Mat object and initialize it with zeros
+            std::cout << "1" << std::endl;
             cv::Mat padded_thresh = cv::Mat::zeros(480, 640, CV_8UC1);
 
+            std::cout << "2" << std::endl;
             // Copy the truncated array into the new cv::Mat object
             cv::Mat roi = padded_thresh(cv::Range(384, 384+thresh.rows), cv::Range::all());
+            std::cout << "3" << std::endl;
             thresh.copyTo(roi);
             if (stopline) {
                 cv::putText(padded_thresh, "Stopline detected!", cv::Point(static_cast<int>(w * 0.5), static_cast<int>(h * 0.5)), cv::FONT_HERSHEY_SIMPLEX, 1, cv::Scalar(255, 255, 255), 1, cv::LINE_AA);
             }
+            std::cout << "4" << std::endl;
             if (dotted) {
                 cv::putText(image, "DottedLine!", cv::Point(static_cast<int>(w*0.5), static_cast<int>(h * 0.5)), cv::FONT_HERSHEY_SIMPLEX, 1, cv::Scalar(0, 0, 255), 1, cv::LINE_AA);
             }
-            cv::line(image, cv::Point(static_cast<int>(center), image.rows), cv::Point(static_cast<int>(center), static_cast<int>(0.8 * image.rows)), cv::Scalar(0, 0, 255), 5);
+            // std::cout << "5" << std::endl;
+            // cv::line(image, cv::Point(static_cast<int>(center), image.rows), cv::Point(static_cast<int>(center), static_cast<int>(0.8 * image.rows)), cv::Scalar(0, 0, 255), 5);
+            std::cout << "6" << std::endl;
             cv::Mat add;
             cv::cvtColor(padded_thresh, add, cv::COLOR_GRAY2BGR);
+            std::cout << "7" << std::endl;
             cv::imshow("Lane", image + add);
+            std::cout << "8" << std::endl;
             cv::waitKey(1);
         }
         if (print) {
             std::cout << "center: " << center << std::endl;
             std::cout << "thresh: " << threshold_value << std::endl;
         }
+        
         return center;
     }
 
