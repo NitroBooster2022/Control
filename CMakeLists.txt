@@ -4,9 +4,6 @@ project(control)
 
 set(CMAKE_CXX_STANDARD 17)
 
-## Find catkin macros and libraries
-## if COMPONENTS list like find_package(catkin REQUIRED COMPONENTS xyz)
-## is used, also find other catkin packages
 find_package(catkin REQUIRED COMPONENTS
   geometry_msgs
   roscpp
@@ -20,50 +17,20 @@ find_package(catkin REQUIRED COMPONENTS
   cv_bridge
   image_transport
   utils
-  # cuda
-  # roslib
-  # image_geometry
 )
 
-## System dependencies are found with CMake's conventions
-# find_package(Boost REQUIRED COMPONENTS system)
-# find_package(OpenCV REQUIRED)
 find_package(CUDA REQUIRED)
-find_package (Eigen3 REQUIRED )
-# Set ncnn_DIR using the relative path
-set(ncnn_DIR ${CMAKE_CURRENT_SOURCE_DIR}/src/lib/cmake/ncnn)
-# find_package(TensorRT REQUIRED)
-# if (TensorRT_FOUND)
-#     message("TensorRT found ${TensorRT_VERSION}, ${TensorRT_INCLUDE_DIRS}")
-# else()
-#     message("TensorRT not found")
-# endif()
+if(CUDA_FOUND)
+  message("-- CUDA found ${CUDA_VERSION_STRING}, ${CUDA_INCLUDE_DIRS}")
+else()
+  message("-- CUDA not found")
+endif()
 
+find_package (Eigen3 REQUIRED )
+set(ncnn_DIR ${CMAKE_CURRENT_SOURCE_DIR}/src/lib/cmake/ncnn)
 
 # For finding FindTensorRT.cmake
 set(CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/cmake" ${CMAKE_MODULE_PATH})
-
-# # TODO: Specify the path to TensorRT root dir
-# if (NOT TensorRT_DIR)
-#     set(TensorRT_DIR /home/cyrus/work/libs/TensorRT-8.6.1.6/)
-# endif()
-# # Use the correct version of CUDA
-# set(CUDA_TOOLKIT_ROOT_DIR /usr/local/cuda)
-
-# add_library(tensorrt_cpp_api SHARED
-#         src/engine.cpp)
-
-# target_include_directories(tensorrt_cpp_api PUBLIC ${OpenCV_INCLUDE_DIRS} ${CUDA_INCLUDE_DIRS} ${TensorRT_INCLUDE_DIRS})
-# target_link_libraries(tensorrt_cpp_api PUBLIC ${OpenCV_LIBS} ${CUDA_LIBRARIES} ${CMAKE_THREAD_LIBS_INIT} ${TensorRT_LIBRARIES})
-
-# add_executable(run_inference_benchmark src/main.cpp)
-# target_link_libraries(run_inference_benchmark tensorrt_cpp_api)
-
-
-# # We require CUDA, OpenCV, and TensorRT
-# find_package(TensorRT REQUIRED)
-# find_package(CUDA REQUIRED)
-# find_package(OpenCV REQUIRED)
 
 find_package(ncnn REQUIRED)
 if (${ncnn_FOUND})
@@ -105,15 +72,6 @@ generate_messages(
   std_msgs#   tf2_geometry_msgs
 )
 
-###################################
-## catkin specific configuration ##
-###################################
-## The catkin_package macro generates cmake config files for your package
-## Declare things to be passed to dependent projects
-## INCLUDE_DIRS: uncomment this if your package contains header files
-## LIBRARIES: libraries you create in this project that dependent projects also need
-## CATKIN_DEPENDS: catkin_packages dependent projects also need
-## DEPENDS: system dependencies of this project that dependent projects also need
 catkin_package(
   #  INCLUDE_DIRS include
   #  LIBRARIES control
@@ -131,10 +89,6 @@ catkin_package(
   cv_bridge
   sensor_msgs
   opencv2
-  #  roslib
-  #  image_geometry
-  #  message_generation
-  #  DEPENDS system_lib
 )
 
 ## Specify additional locations of header files
@@ -149,8 +103,8 @@ include_directories(
   # ${CMAKE_CURRENT_SOURCE_DIR}/src/control/src/include
 )
 
-include_directories(/home/slsecret/TensorRT-8.6.1.6/include)
-link_directories(/home/slsecret/TensorRT-8.6.1.6/lib)
+include_directories(~/TensorRT-8.6.1.6/include)
+link_directories(~/TensorRT-8.6.1.6/lib)
 
 include_directories(/usr/local/cuda/targets/x86_64-linux/include)
 link_directories(/usr/local/cuda/targets/x86_64-linux/lib)
@@ -175,11 +129,18 @@ link_directories(/usr/local/lib)
 #   src/signFastest.cpp
 #   src/yolo-fastestv2.cpp
 # )
-# add_executable(signTRT2
-# src/signTRT2.cpp
-# src/engine.cpp
-# src/yolo-fastestv2.cpp
-# )
+add_executable(signTRT2
+src/signTRT2.cpp
+src/engine.cpp
+)
+target_link_libraries(signTRT2
+  ${catkin_LIBRARIES}
+  ${OpenCV_LIBS}
+  ${CUDA_LIBRARIES}
+  nvinfer
+  nvparsers
+  nvonnxparser
+)
 add_executable(bridge
   src/localization_bridge.cpp
 )
