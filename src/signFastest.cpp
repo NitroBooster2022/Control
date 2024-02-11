@@ -21,6 +21,7 @@ class signFastest {
             nh.getParam("/signFastest/showFlag", show);
             nh.getParam("/signFastest/printFlag", print);
             nh.getParam("/signFastest/printFlag", printDuration); //printDuration
+            nh.getParam("/signFastest/hasDepthImage", hasDepthImage);
             std::string model;
             nh.getParam("model", model);
             std::cout << "showFlag: " << show << std::endl;
@@ -55,9 +56,10 @@ class signFastest {
 
             pub = nh.advertise<std_msgs::Float32MultiArray>("sign", 10);
             std::cout <<"pub created" << std::endl;
-            depth_sub = it.subscribe("/camera/depth/image_raw", 3, &signFastest::depthCallback, this);
-            // wait for depth image
-            ros::topic::waitForMessage<sensor_msgs::Image>("/camera/depth/image_raw", nh);
+            if(hasDepthImage) {
+                depth_sub = it.subscribe("/camera/depth/image_raw", 3, &signFastest::depthCallback, this);
+                ros::topic::waitForMessage<sensor_msgs::Image>("/camera/depth/image_raw", nh);
+            }
             sub = it.subscribe("/camera/image_raw", 3, &signFastest::imageCallback, this);
         }
         enum OBJECT {
@@ -117,7 +119,12 @@ class signFastest {
                 int class_id = box.cate;
                 float confidence = box.score;
                 if (confidence >= confidence_thresholds[class_id]) {
-                    double distance = computeMedianDepth(cv_ptr_depth->image, box)/1000; // in meters
+                    double distance;
+                    if(hasDepthImage) {
+                        distance = computeMedianDepth(cv_ptr_depth->image, box)/1000; // in meters
+                    } else {
+                        distance = -1;
+                    }
                     if (!distance_makes_sense(distance, class_id, box.x1, box.y1, box.x2, box.y2)) continue;
                     sign_msg.data.push_back(box.x1);
                     sign_msg.data.push_back(box.y1);
@@ -204,6 +211,7 @@ class signFastest {
         bool show;
         bool print;
         bool printDuration;
+        bool hasDepthImage;
         cv_bridge::CvImagePtr cv_ptr;
         cv_bridge::CvImagePtr cv_ptr_depth;
         cv::Mat normalizedDepthImage;
