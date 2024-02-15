@@ -1,9 +1,10 @@
 #include "ros/ros.h"
-#include "cv_bridge/cv_bridge.h"
 #include "include/yolo-fastestv2.h"
+#include <opencv2/opencv.hpp>
 #include <opencv2/core.hpp>
 #include <opencv2/core/types.hpp>
 #include "image_transport/image_transport.h"
+#include "cv_bridge/cv_bridge.h"
 #include "std_msgs/Header.h"
 #include "include/engine.h"
 #include <chrono>
@@ -31,39 +32,43 @@ class signTRT{
             nh.getParam("signFastest/printDuration",printDuration);
             std::string model_name;
             nh.getParam("model",model_name);
-            std::cout << "showFlag: " << show << std::endl;
-            std::cout << "printFlag: " << print << std::endl;
-            std::cout << "printDuration: " << printDuration << std::endl;
-            std::cout << "class_names: " << class_names.size() << std::endl;
-            std::cout << "confidence_thresholds: " << confidence_thresholds.size() << std::endl;
-            std::cout << "distance_thresholds: " << distance_thresholds.size() << std::endl;
-            std::cout << "model: " << model_name << std::endl;
-
+            // std::cout << "showFlag: " << show << std::endl;
+            // std::cout << "printFlag: " << print << std::endl;
+            // std::cout << "printDuration: " << printDuration << std::endl;
+            // std::cout << "class_names: " << class_names.size() << std::endl;
+            // std::cout << "confidence_thresholds: " << confidence_thresholds.size() << std::endl;
+            // std::cout << "distance_thresholds: " << distance_thresholds.size() << std::endl;
+            // std::cout <<"ck0";
+            // std::cout << "model: " << model_name << std::endl;
+            // std::cout <<"ck1";
             //get the model path
-            std::string filePathParam = __FILE__;
-            size_t pos = filePathParam.rfind("/") + 1;
-            filePathParam.replace(pos,std::string::npos, "model/" + model_name + ".engine");
-            const char* modelPath = filePathParam.c_str();
+            // std::string filePathParam = __FILE__;
+            std::string filePathParam = "/home/simonli/Simulator/src/Control/models/" + model_name + ".engine";
 
             //initialize engine
             
 
             // engine(options); //create engine object
-
-            model.m_engineName = modelPath;
+            model.m_engineName = filePathParam;
 
             // Load the TensorRT engine file from disk
             bool succ = model.loadNetwork();
+            if(!succ){
+                std::cout << "failed to load engine" << std::endl;
+                exit(1);
+            }
 
             //topics management
             pub = nh.advertise<std_msgs::Float32MultiArray>("sign",10);
             std::cout << "pub created" << std::endl;
             depth_sub = it.subscribe("/camera/depth/image_raw",3,&signTRT::depthCallback,this);
             ros::topic::waitForMessage<sensor_msgs::Image>("/camera/depth/image_raw",nh);
-            sub = it.subscribe("/camera/image_raw",3,&signTRT::imageCallback,this);
+            sub = it.subscribe("/camera/color/image_raw",3,&signTRT::imageCallback,this);
+            std::cout << "sub created" << std::endl;
 
         }
         void depthCallback(const sensor_msgs::ImageConstPtr& msg){
+            std::cout << "depth callback" << std::endl;
             try{
                 cv_ptr_depth = cv_bridge::toCvCopy(msg,sensor_msgs::image_encodings::TYPE_32FC1);
             }
@@ -73,6 +78,7 @@ class signTRT{
             }
         }
         void imageCallback(const sensor_msgs::ImageConstPtr& msg){
+            std::cout << "image callback" << std::endl;
             if(printDuration) start = std::chrono::high_resolution_clock::now();
             try{
                 cv_ptr = cv_bridge::toCvCopy(msg, sensor_msgs::image_encodings::RGB8);
@@ -82,18 +88,21 @@ class signTRT{
                 return;
             }
             //input image
-            
+            std::cout << "ck1" << std::endl;
             img.upload(cv_ptr->image);
+            std::cout << "ck11" << std::endl;
             //detection params
+            auto inputdims = model.getInputDims();
+            std::cout << "size: " << inputDims.size() << std::endl;
             inputDims = model.getInputDims();
-            
+            std::cout << "ck12" << std::endl;
             size_t batchSize = options.optBatchSize;
-
+            std::cout << "ck2" << std::endl;
             auto resized = Engine::resizeKeepAspectRatioPadRightBottom(img,inputDims[0].d[1], inputDims[0].d[2]);
             inputs[0].emplace_back(std::move(resized));
-
+            std::cout << "ck3" << std::endl;
             model.runInference(inputs,featureVectors);
-
+            std::cout << "ck4" << std::endl;
             //convert featureVectors into output boxes
             std::vector<cv::Rect> tmp_boxes;
             std::vector<float> scores;
@@ -295,7 +304,7 @@ int main(int argc, char** argv) {
   int opt;
 
   // Initialize ROS node and publisher
-  ros::init(argc, argv, "object_detector");
+    ros::init(argc, argv, "object_detector");
   ros::NodeHandle nh;
     options.precision = Precision::FP16;
     // If using INT8 precision, must specify path to directory containing calibration data.
@@ -304,6 +313,7 @@ int main(int argc, char** argv) {
     options.optBatchSize = 1;
     // Specify the maximum batch size we plan on running.
     options.maxBatchSize = 1;
+    std::cout << "Using OpenCV version " << CV_VERSION << std::endl;
   signTRT signTRT(nh);
   //define rate
   ros::Rate loop_rate(25);
