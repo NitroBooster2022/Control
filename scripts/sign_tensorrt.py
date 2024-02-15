@@ -361,6 +361,9 @@ def lightColor_identify(img):
     
 # ----------------------------------------helpers end-------------------------------------------------------
 
+global depth_img
+confidence_thresholds = [0.8, 0.8, 0.8, 0.8, 0.5, 0.8, 0.8, 0.8, 0.8, 0.8, 0.8, 0.8, 0.9]
+distance_thresholds = [2.0, 2.0, 2.0, 2.0, 2.4, 2.0, 2.0, 2.0, 2.0, 2.0, 2.0, 2.0, 1.2]
 
 class ObjectDetector():
     def __init__(self, show):
@@ -376,7 +379,6 @@ class ObjectDetector():
         rospy.init_node('object_detection_node', anonymous=True)
         self.bridge = CvBridge()
         self.depth_sub = rospy.Subscriber("/camera/depth/image_raw", Image, self.depth_callback)
-        rospy.
         self.image_sub = rospy.Subscriber("/camera/image_raw", Image, self.image_callback)
         # self.image_sub = rospy.Subscriber("automobile/image_raw/compressed", CompressedImage, self.image_callback)
         self.pub = rospy.Publisher("sign", Sign, queue_size = 3)
@@ -385,6 +387,12 @@ class ObjectDetector():
         self.light_color = Light()
         self.rate = rospy.Rate(15)
 
+
+    def depth_callback(self, data):
+        global depth_img
+        depth_img = self.bridge.imgmsg_to_cv2(data,desired_encoding='passthrough')
+    
+    
     def image_callback(self, data):
         """
         Callback function for the image processed topic
@@ -404,6 +412,22 @@ class ObjectDetector():
 
         # self.class_ids, __, self.boxes = self.detect(image, self.class_list, show=self.show)
         self.boxes, self.scores, self.class_ids = self.detector(image)
+        
+        #detection result filtering 
+        todelete = []
+        self.distances=[]
+        for i in range(len(self.scores)):
+            if self.scores[i] >= confidence_thresholds[self.class_ids[i]]:
+                distance = computeMedianDepth(depth_img,self.boxes[i])/1000
+                if distance > distance_thresholds[self.class_ids[i]]:
+                    todelete.append(i)
+                self.distances.append(distance)
+        self.boxes = [value for index, value in enumerate(self.boxes) if index not in todelete]
+        self.scores = [value for index, value in enumerate(self.scores) if index not in todelete]
+        self.class_ids = [value for index, value in enumerate(self.class_ids) if index not in todelete]
+        self.distances = [value for index, value in enumerate(self.distances) if index not in todelete]
+  
+        #traffic light color detection
         color = 0
         if (9 in self.class_ids):
             indices = [index for index, element in enumerate(self.class_ids) if element == 9]
@@ -435,6 +459,7 @@ class ObjectDetector():
             cv2.waitKey(3)
         self.p.objects = self.class_ids
         self.p.num = len(self.class_ids)
+        self.p.distances = self.distances
         if self.p.num>=2:
             height1 = self.boxes[0][3]-self.boxes[0][1]
             width1 = self.boxes[0][2]-self.boxes[0][0]
@@ -767,6 +792,22 @@ def draw_comparison(img1, img2, name1, name2, fontsize=2.6, text_thickness=3):
 
     return combined_img
 
+def computeMedianDepth(depthimg,box):
+    x1 = int(max(0,box[0]))
+    x2 = int(max(0,box[2]))
+    y1 = int(max(0,box[1]))
+    y2 = int(max(0,box[3]))
+    croppedDepth = depthimg[x1:x2,y1:y2]
+    depths = []
+    depths = croppedDepth[croppedDepth>100].flatten()
+    
+    depths = sorted(depths)
+    index20percent = len(depths)*0.2
+    if (index20percent) <= 0:
+        return depths[0]
+    else:
+        return depths[int(index20percent/2)]
+    
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument("--show", type=str, default=False, help="show camera frames")
