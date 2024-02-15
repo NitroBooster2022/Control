@@ -249,8 +249,6 @@ def getColor(img,img_hsv,color):
     kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (8,8))
     mask_1 = cv2.morphologyEx(mask, cv2.MORPH_OPEN, kernel)
 
-    # cv2.imshow("mask",mask_1)
-    # cv2.waitKey(0)
     # Find contours of the colored areas
     contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
     # print(contours)   
@@ -312,21 +310,7 @@ def getColor(img,img_hsv,color):
         
         sat_mean = np.mean(s)
         val_mean = np.mean(v)
-        
-        
-        # sat_bright = np.mean(v)
-        
-        
-        
 
-        # gray_img = cv2.cvtColor(img,cv2.COLOR_BGR2GRAY)
-        # gray_crop = gray_img[crop_wmin:crop_wmax,crop_hmin:crop_hmax]
-        # sat_bright = np.mean((gray_crop))
-        # print(sat_bright)
-        
-        # cv2.imshow("gray",gray_crop)
-        # cv2.imshow("mask",mask_1)
-        # cv2.waitKey(0)
     else:
         b_mean = 0
         g_mean = 0
@@ -334,13 +318,9 @@ def getColor(img,img_hsv,color):
         
         sat_mean = 0
         val_mean = 0
-        # hue = 0
-    
-    
-      
+        
     return b_mean,g_mean,r_mean,sat_mean,val_mean
-    # return hue, sat_mean,val_mean
-
+ 
 def predict(strR,strG,strY):
     
     max = np.max([strR,strG*1.05,strY])
@@ -363,10 +343,7 @@ def lightColor_identify(img):
     b_red,g_red,r_red,sat_red,val_red = getColor(img,img_hsv,"red")
     b_green,g_green,r_green,sat_green,val_green = getColor(img,img_hsv,"green")
     b_yellow,g_yellow,r_yellow,sat_yellow,val_yellow = getColor(img,img_hsv,"yellow")
-    # hue_red,sat_red,val_red = getColor(img,img_hsv,"red")
-    # hue_green,sat_green,val_green = getColor(img,img_hsv,"green")
-    # hue_yellow,sat_yellow,val_yellow = getColor(img,img_hsv,"yellow")
-    
+
     red = 0
     green = 0
     yellow = 0
@@ -379,10 +356,6 @@ def lightColor_identify(img):
     
     print(red,green,yellow)
     light_color = predict(red,green,yellow)
-    # cv2.imshow("mask",mask_y+mask_g+mask_r)
-    # cv2.waitKey(0)
-    
-    # print("the color of the light is " + light_color)
 
     return light_color
     
@@ -402,6 +375,8 @@ class ObjectDetector():
         self.class_names = ['oneway', 'highwayexit', 'stopsign', 'roundabout', 'park', 'crosswalk', 'noentry', 'highwayentrance', 'priority', 'light', 'block', 'girl', 'car']
         rospy.init_node('object_detection_node', anonymous=True)
         self.bridge = CvBridge()
+        self.depth_sub = rospy.Subscriber("/camera/depth/image_raw", Image, self.depth_callback)
+        rospy.
         self.image_sub = rospy.Subscriber("/camera/image_raw", Image, self.image_callback)
         # self.image_sub = rospy.Subscriber("automobile/image_raw/compressed", CompressedImage, self.image_callback)
         self.pub = rospy.Publisher("sign", Sign, queue_size = 3)
