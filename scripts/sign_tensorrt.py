@@ -249,8 +249,6 @@ def getColor(img,img_hsv,color):
     kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (8,8))
     mask_1 = cv2.morphologyEx(mask, cv2.MORPH_OPEN, kernel)
 
-    # cv2.imshow("mask",mask_1)
-    # cv2.waitKey(0)
     # Find contours of the colored areas
     contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
     # print(contours)   
@@ -312,21 +310,7 @@ def getColor(img,img_hsv,color):
         
         sat_mean = np.mean(s)
         val_mean = np.mean(v)
-        
-        
-        # sat_bright = np.mean(v)
-        
-        
-        
 
-        # gray_img = cv2.cvtColor(img,cv2.COLOR_BGR2GRAY)
-        # gray_crop = gray_img[crop_wmin:crop_wmax,crop_hmin:crop_hmax]
-        # sat_bright = np.mean((gray_crop))
-        # print(sat_bright)
-        
-        # cv2.imshow("gray",gray_crop)
-        # cv2.imshow("mask",mask_1)
-        # cv2.waitKey(0)
     else:
         b_mean = 0
         g_mean = 0
@@ -334,13 +318,9 @@ def getColor(img,img_hsv,color):
         
         sat_mean = 0
         val_mean = 0
-        # hue = 0
-    
-    
-      
+        
     return b_mean,g_mean,r_mean,sat_mean,val_mean
-    # return hue, sat_mean,val_mean
-
+ 
 def predict(strR,strG,strY):
     
     max = np.max([strR,strG*1.05,strY])
@@ -363,10 +343,7 @@ def lightColor_identify(img):
     b_red,g_red,r_red,sat_red,val_red = getColor(img,img_hsv,"red")
     b_green,g_green,r_green,sat_green,val_green = getColor(img,img_hsv,"green")
     b_yellow,g_yellow,r_yellow,sat_yellow,val_yellow = getColor(img,img_hsv,"yellow")
-    # hue_red,sat_red,val_red = getColor(img,img_hsv,"red")
-    # hue_green,sat_green,val_green = getColor(img,img_hsv,"green")
-    # hue_yellow,sat_yellow,val_yellow = getColor(img,img_hsv,"yellow")
-    
+
     red = 0
     green = 0
     yellow = 0
@@ -379,15 +356,17 @@ def lightColor_identify(img):
     
     print(red,green,yellow)
     light_color = predict(red,green,yellow)
-    # cv2.imshow("mask",mask_y+mask_g+mask_r)
-    # cv2.waitKey(0)
-    
-    # print("the color of the light is " + light_color)
 
     return light_color
     
 # ----------------------------------------helpers end-------------------------------------------------------
 
+global depth_img
+confidence_thresholds = [0.8, 0.8, 0.8, 0.8, 0.5, 0.8, 0.8, 0.8, 0.8, 0.8, 0.8, 0.8, 0.9]
+distance_thresholds = [2.0, 2.0, 2.0, 2.0, 2.4, 2.0, 2.0, 2.0, 2.0, 2.0, 2.0, 2.0, 1.2]
+SIGN_H2D_RATIO = 31.57
+LIGHT_W2D_RATIO = 41.87
+CAR_H2D_RATIO = 90.15
 
 class ObjectDetector():
     def __init__(self, show):
@@ -402,6 +381,7 @@ class ObjectDetector():
         self.class_names = ['oneway', 'highwayexit', 'stopsign', 'roundabout', 'park', 'crosswalk', 'noentry', 'highwayentrance', 'priority', 'light', 'block', 'girl', 'car']
         rospy.init_node('object_detection_node', anonymous=True)
         self.bridge = CvBridge()
+        self.depth_sub = rospy.Subscriber("/camera/depth/image_raw", Image, self.depth_callback)
         self.image_sub = rospy.Subscriber("/camera/image_raw", Image, self.image_callback)
         # self.image_sub = rospy.Subscriber("automobile/image_raw/compressed", CompressedImage, self.image_callback)
         self.pub = rospy.Publisher("sign", Sign, queue_size = 3)
@@ -410,6 +390,12 @@ class ObjectDetector():
         self.light_color = Light()
         self.rate = rospy.Rate(15)
 
+
+    def depth_callback(self, data):
+        global depth_img
+        depth_img = self.bridge.imgmsg_to_cv2(data,desired_encoding='passthrough')
+    
+    
     def image_callback(self, data):
         """
         Callback function for the image processed topic
@@ -429,6 +415,24 @@ class ObjectDetector():
 
         # self.class_ids, __, self.boxes = self.detect(image, self.class_list, show=self.show)
         self.boxes, self.scores, self.class_ids = self.detector(image)
+        
+        #detection result filtering 
+        todelete = []
+        self.distances=[]
+        for i in range(len(self.scores)):
+            if self.scores[i] >= confidence_thresholds[self.class_ids[i]]:
+                distance = computeMedianDepth(depth_img,self.boxes[i])/1000
+                if distance_make_sense(distance,self.class_ids[i],self.boxes[i]):
+                    self.distances.append(distance)
+                else:
+                    todelete.append(i)
+                
+        self.boxes = [value for index, value in enumerate(self.boxes) if index not in todelete]
+        self.scores = [value for index, value in enumerate(self.scores) if index not in todelete]
+        self.class_ids = [value for index, value in enumerate(self.class_ids) if index not in todelete]
+        self.distances = [value for index, value in enumerate(self.distances) if index not in todelete]
+  
+        #traffic light color detection
         color = 0
         if (9 in self.class_ids):
             indices = [index for index, element in enumerate(self.class_ids) if element == 9]
@@ -460,27 +464,21 @@ class ObjectDetector():
             cv2.waitKey(3)
         self.p.objects = self.class_ids
         self.p.num = len(self.class_ids)
-        if self.p.num>=2:
-            height1 = self.boxes[0][3]-self.boxes[0][1]
-            width1 = self.boxes[0][2]-self.boxes[0][0]
-            self.boxes[0][2] = width1
-            self.boxes[0][3] = height1
-            # print("height1, width1: ", height1, width1, self.class_names[self.class_ids[0]])
-            height2 = self.boxes[1][3]-self.boxes[1][1]
-            width2 = self.boxes[1][2]-self.boxes[1][0]
-            self.boxes[1][2] = width2
-            self.boxes[1][3] = height2
-            self.p.box1 = self.boxes[0]
-            self.p.box2 = self.boxes[1]
-        elif self.p.num>=1:
-            height1 = self.boxes[0][3]-self.boxes[0][1]
-            width1 = self.boxes[0][2]-self.boxes[0][0]
-            self.boxes[0][2] = width1
-            self.boxes[0][3] = height1
-            # print("height1, width1: ", height1, width1, self.class_names[self.class_ids[0]])
-            self.p.box1 = self.boxes[0]
-
-        
+        self.p.confidence = self.scores
+        self.p.distances = self.distances
+        for i in range(len(self.boxes)):
+            height1 = self.boxes[i][3]-self.boxes[i][1]
+            width1 = self.boxes[i][2]-self.boxes[i][0]
+            self.boxes[i][2] = width1
+            self.boxes[i][3] = height1
+            if i == 0:
+                self.p.box1 = self.boxes[0]
+            elif i==1:
+                self.p.box2 = self.boxes[1]
+            elif i==2:  
+                self.p.box3 = self.boxes[2]
+            elif i==3:
+                self.p.box4 = self.boxes[3]
         
         self.pub.publish(self.p)
         print("time: ",time.time()-t1)
@@ -792,6 +790,40 @@ def draw_comparison(img1, img2, name1, name2, fontsize=2.6, text_thickness=3):
 
     return combined_img
 
+def computeMedianDepth(depthimg,box):
+    x1 = int(max(0,box[0]))
+    x2 = int(max(0,box[2]))
+    y1 = int(max(0,box[1]))
+    y2 = int(max(0,box[3]))
+    croppedDepth = depthimg[y1:y2,x1:x2]
+    depths = []
+    depths = croppedDepth[croppedDepth>100].flatten().tolist()
+    
+    depths = sorted(depths)
+    index20percent = len(depths)*0.2
+    if (index20percent) <= 0:
+        return depths[0]
+    else:
+        return depths[int(index20percent/2)]
+    
+def distance_make_sense(distance,objectID,box):
+        if distance>distance_thresholds[objectID]:
+            return False
+        else:
+            height = box[3]-box[1]
+            width = box[2]-box[0]
+            if objectID==12:
+                expected_distance = CAR_H2D_RATIO/height
+            elif objectID==9:
+                expected_distance = LIGHT_W2D_RATIO/width
+            elif objectID != 11:
+                expected_distance = SIGN_H2D_RATIO/height
+            if distance > expected_distance*1.33 or distance < expected_distance*1/1.33:
+                return False
+            else:
+                return True
+
+    
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument("--show", type=str, default=False, help="show camera frames")
