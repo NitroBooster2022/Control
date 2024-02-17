@@ -31,6 +31,7 @@ class signFastest {
             std::cout << "confidence_thresholds: " << confidence_thresholds.size() << std::endl;
             std::cout << "distance_thresholds: " << distance_thresholds.size() << std::endl;
             std::cout << "model: " << model << std::endl;
+            printf("hasDepthImage: %s\n", hasDepthImage ? "true" : "false");
 
             // std::string filePathParam = __FILE__;
             // size_t pos = filePathParam.rfind("/") + 1;
@@ -60,7 +61,7 @@ class signFastest {
                 depth_sub = it.subscribe("/camera/depth/image_raw", 3, &signFastest::depthCallback, this);
                 ros::topic::waitForMessage<sensor_msgs::Image>("/camera/depth/image_raw", nh);
             }
-            sub = it.subscribe("/camera/image_raw", 3, &signFastest::imageCallback, this);
+            sub = it.subscribe("/camera/color/image_raw", 3, &signFastest::imageCallback, this);
         }
         enum OBJECT {
             ONEWAY,
@@ -102,14 +103,11 @@ class signFastest {
         }
         void imageCallback(const sensor_msgs::ImageConstPtr &msg) {
             if(printDuration) start = high_resolution_clock::now();
-            try {
-                cv_ptr = cv_bridge::toCvCopy(msg, sensor_msgs::image_encodings::BGR8);
-                // cv_ptr = cv_bridge::toCvCopy(msg, sensor_msgs::image_encodings::RGB8);
-            } catch (cv_bridge::Exception &e) {
-                ROS_ERROR("cv_bridge exception: %s", e.what());
+            cv_ptr = cv_bridge::toCvCopy(msg, sensor_msgs::image_encodings::BGR8);
+            if (!cv_ptr) {
+                ROS_ERROR("cv_bridge failed to convert image");
                 return;
             }
-
             api.detection(cv_ptr->image, boxes);
             std_msgs::Float32MultiArray sign_msg;
             sign_msg.layout.data_offset = 0;
@@ -155,15 +153,19 @@ class signFastest {
                 // Normalize depth img
                 double maxVal;
                 double minVal;
-                cv::minMaxIdx(cv_ptr_depth->image, &minVal, &maxVal);
-                cv_ptr_depth->image.convertTo(normalizedDepthImage, CV_8U, 255.0 / (maxVal - minVal), -minVal * 255.0 / (maxVal - minVal));
+                if (hasDepthImage) {
+                    cv::minMaxIdx(cv_ptr_depth->image, &minVal, &maxVal);
+                    cv_ptr_depth->image.convertTo(normalizedDepthImage, CV_8U, 255.0 / (maxVal - minVal), -minVal * 255.0 / (maxVal - minVal));
+                }
                 for (int i = 0; i < boxes.size(); i++) {
                     char text[256];
                     int id = boxes[i].cate;
                     sprintf(text, "%s %.1f%%", class_names[id].c_str(), boxes[i].score * 100);
                     char text2[256];
-                    double distance = computeMedianDepth(cv_ptr_depth->image, boxes[i])/1000; 
-                    sprintf(text2, "%s %.1fm", class_names[id].c_str(), distance);
+                    if (hasDepthImage) {
+                        double distance = computeMedianDepth(cv_ptr_depth->image, boxes[i])/1000; 
+                        sprintf(text2, "%s %.1fm", class_names[id].c_str(), distance);
+                    }
                     int baseLine = 0;
                     cv::Size label_size = cv::getTextSize(text, cv::FONT_HERSHEY_SIMPLEX, 0.5, 1, &baseLine);
 
@@ -180,16 +182,18 @@ class signFastest {
                                 cv::FONT_HERSHEY_SIMPLEX, 0.5, cv::Scalar(0, 0, 0));
                     cv::rectangle (cv_ptr->image, cv::Point(boxes[i].x1, boxes[i].y1), 
                                 cv::Point(boxes[i].x2, boxes[i].y2), cv::Scalar(255, 255, 0), 2, 2, 0);
-
-                    cv::rectangle(normalizedDepthImage, cv::Rect(cv::Point(x, y), cv::Size(label_size.width, label_size.height + baseLine)),
+                    if(hasDepthImage) {
+                        cv::rectangle(normalizedDepthImage, cv::Rect(cv::Point(x, y), cv::Size(label_size.width, label_size.height + baseLine)),
                                 cv::Scalar(255, 255, 255), -1);
-                    cv::putText(normalizedDepthImage, text2, cv::Point(x, y + label_size.height),
+                        cv::putText(normalizedDepthImage, text2, cv::Point(x, y + label_size.height),
                                 cv::FONT_HERSHEY_SIMPLEX, 0.5, cv::Scalar(0, 0, 0));
-                    cv::rectangle (normalizedDepthImage, cv::Point(boxes[i].x1, boxes[i].y1), 
+                        cv::rectangle (normalizedDepthImage, cv::Point(boxes[i].x1, boxes[i].y1), 
                                 cv::Point(boxes[i].x2, boxes[i].y2), cv::Scalar(255, 255, 0), 2, 2, 0);
+                    }
                 }
-                
-                cv::imshow("normalized depth image", normalizedDepthImage);
+                if(hasDepthImage) {
+                    cv::imshow("normalized depth image", normalizedDepthImage);
+                }
                 cv::imshow("image", cv_ptr->image);
                 cv::waitKey(1);
             }
@@ -262,6 +266,7 @@ class signFastest {
 };
 
 int main(int argc, char **argv) {
+    std::cout << "OpenCV version : " << CV_VERSION << std::endl;
     int opt;
     
     // Initialize ROS node and publisher
