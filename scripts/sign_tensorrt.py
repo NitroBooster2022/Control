@@ -459,28 +459,21 @@ class ObjectDetector():
             cv2.waitKey(3)
         self.p.objects = self.class_ids
         self.p.num = len(self.class_ids)
+        self.p.confidence = self.scores
         self.p.distances = self.distances
-        if self.p.num>=2:
-            height1 = self.boxes[0][3]-self.boxes[0][1]
-            width1 = self.boxes[0][2]-self.boxes[0][0]
-            self.boxes[0][2] = width1
-            self.boxes[0][3] = height1
-            # print("height1, width1: ", height1, width1, self.class_names[self.class_ids[0]])
-            height2 = self.boxes[1][3]-self.boxes[1][1]
-            width2 = self.boxes[1][2]-self.boxes[1][0]
-            self.boxes[1][2] = width2
-            self.boxes[1][3] = height2
-            self.p.box1 = self.boxes[0]
-            self.p.box2 = self.boxes[1]
-        elif self.p.num>=1:
-            height1 = self.boxes[0][3]-self.boxes[0][1]
-            width1 = self.boxes[0][2]-self.boxes[0][0]
-            self.boxes[0][2] = width1
-            self.boxes[0][3] = height1
-            # print("height1, width1: ", height1, width1, self.class_names[self.class_ids[0]])
-            self.p.box1 = self.boxes[0]
-
-        
+        for i in range(len(self.boxes)):
+            height1 = self.boxes[i][3]-self.boxes[i][1]
+            width1 = self.boxes[i][2]-self.boxes[i][0]
+            self.boxes[i][2] = width1
+            self.boxes[i][3] = height1
+            if i == 0:
+                self.p.box1 = self.boxes[0]
+            elif i==1:
+                self.p.box2 = self.boxes[1]
+            elif i==2:  
+                self.p.box3 = self.boxes[2]
+            elif i==3:
+                self.p.box4 = self.boxes[3]
         
         self.pub.publish(self.p)
         print("time: ",time.time()-t1)
@@ -797,9 +790,9 @@ def computeMedianDepth(depthimg,box):
     x2 = int(max(0,box[2]))
     y1 = int(max(0,box[1]))
     y2 = int(max(0,box[3]))
-    croppedDepth = depthimg[x1:x2,y1:y2]
+    croppedDepth = depthimg[y1:y2,x1:x2]
     depths = []
-    depths = croppedDepth[croppedDepth>100].flatten()
+    depths = croppedDepth[croppedDepth>100].flatten().tolist()
     
     depths = sorted(depths)
     index20percent = len(depths)*0.2
