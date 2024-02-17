@@ -364,6 +364,9 @@ def lightColor_identify(img):
 global depth_img
 confidence_thresholds = [0.8, 0.8, 0.8, 0.8, 0.5, 0.8, 0.8, 0.8, 0.8, 0.8, 0.8, 0.8, 0.9]
 distance_thresholds = [2.0, 2.0, 2.0, 2.0, 2.4, 2.0, 2.0, 2.0, 2.0, 2.0, 2.0, 2.0, 1.2]
+SIGN_H2D_RATIO = 31.57
+LIGHT_W2D_RATIO = 41.87
+CAR_H2D_RATIO = 90.15
 
 class ObjectDetector():
     def __init__(self, show):
@@ -419,9 +422,11 @@ class ObjectDetector():
         for i in range(len(self.scores)):
             if self.scores[i] >= confidence_thresholds[self.class_ids[i]]:
                 distance = computeMedianDepth(depth_img,self.boxes[i])/1000
-                if distance > distance_thresholds[self.class_ids[i]]:
+                if distance_make_sense(distance,self.class_ids[i],self.boxes[i]):
+                    self.distances.append(distance)
+                else:
                     todelete.append(i)
-                self.distances.append(distance)
+                
         self.boxes = [value for index, value in enumerate(self.boxes) if index not in todelete]
         self.scores = [value for index, value in enumerate(self.scores) if index not in todelete]
         self.class_ids = [value for index, value in enumerate(self.class_ids) if index not in todelete]
@@ -800,6 +805,24 @@ def computeMedianDepth(depthimg,box):
         return depths[0]
     else:
         return depths[int(index20percent/2)]
+    
+def distance_make_sense(distance,objectID,box):
+        if distance>distance_thresholds[objectID]:
+            return False
+        else:
+            height = box[3]-box[1]
+            width = box[2]-box[0]
+            if objectID==12:
+                expected_distance = CAR_H2D_RATIO/height
+            elif objectID==9:
+                expected_distance = LIGHT_W2D_RATIO/width
+            elif objectID != 11:
+                expected_distance = SIGN_H2D_RATIO/height
+            if distance > expected_distance*1.33 or distance < expected_distance*1/1.33:
+                return False
+            else:
+                return True
+
     
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
