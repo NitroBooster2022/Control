@@ -55,6 +55,7 @@ add_message_files(
   FILES
   Lane.msg
   Sign.msg
+  Light.msg
 )
 
 ## Generate services in the 'srv' folder
