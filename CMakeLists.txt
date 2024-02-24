@@ -43,7 +43,7 @@ if (${ncnn_FOUND})
   include_directories(${ncnn_INCLUDE})
 endif()
 
-find_package(OpenCV 4.9 REQUIRED)
+find_package(OpenCV 4.5 REQUIRED)
 if (OpenCV_FOUND)
     message("OpenCV found ${OpenCV_VERSION}, ${OpenCV_INCLUDE_DIRS}")
 else()

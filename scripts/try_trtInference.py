@@ -53,6 +53,9 @@ class ObjectDetector():
 
         # self.class_ids, __, self.boxes = self.detect(image, self.class_list, show=self.show)
         self.boxes, self.scores, self.class_ids = self.detector(image)
+        t2 = time.time()
+        print("time: ",t2-t1)
+
         if self.show:
             img = draw_detections(image, self.boxes, self.scores, self.class_ids)
             # cv2.rectangle(image, (100, 100), (200, 300), (255,0,0), 2)
@@ -83,8 +86,7 @@ class ObjectDetector():
             # self.p.box1 = self.boxes[0]
         print(self.class_ids)
         print(self.boxes)
-        print(self.class_names)
-        print("time: ",time.time()-t1)
+        # print(self.class_names)
 
 #detector class
 class InferenceModel:
@@ -131,18 +133,20 @@ class InferenceModel:
         self.has_postprocess = self.official_nms
 
     def detect_objects(self, image):
+        
         self.prepare_input(image)
-
+        t3 = time.time()
         # Perform inference on the image
         outputs = self.inference()
-
+        t4 = time.time()
         if self.has_postprocess:
             self.boxes, self.scores, self.class_ids = self.parse_processed_output(outputs)
 
         else:
             # Process output data
             self.boxes, self.scores, self.class_ids = self.new_process_output(outputs)
-
+        
+        print("detect_object:",t4-t3)
         return self.boxes, self.scores, self.class_ids
 
     def prepare_input(self, image):
@@ -405,8 +409,8 @@ if __name__ == '__main__':
     # except rospy.ROSInterruptException:
     #     cv2.destroyAllWindows()
     try:
-        image = cv2.imread('/media/slsecret/E624108524105B3F/Users/simon/Downloads/linxy/cityscape/YOLOformat/bg_processed/16.png')
-        detect = ObjectDetector(path='/home/slsecret/Documents/BFMC/Control/models/best.engine', show=True)
+        image = cv2.imread("/home/scandy/Documents/BFMC_pkgs/Control/street.jpg")
+        detect = ObjectDetector(path='/home/scandy/Documents/BFMC_pkgs/Control/models/best.engine', show=False)
         detect.image_callback(image)
     except Exception as e:
         print(e)
