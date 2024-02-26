@@ -133,20 +133,29 @@ class InferenceModel:
         self.has_postprocess = self.official_nms
 
     def detect_objects(self, image):
+<<<<<<< HEAD
         t3 = time.time()
+=======
+        
+>>>>>>> 407bc4475a44218bf5cea7c24a1a01cac4376b74
         self.prepare_input(image)
-
+        t3 = time.time()
         # Perform inference on the image
         outputs = self.inference()
-
+        t4 = time.time()
         if self.has_postprocess:
             self.boxes, self.scores, self.class_ids = self.parse_processed_output(outputs)
 
         else:
             # Process output data
             self.boxes, self.scores, self.class_ids = self.new_process_output(outputs)
+<<<<<<< HEAD
         t4 = time.time()
         print("detect_objects:",t4-t3)
+=======
+        
+        print("detect_object:",t4-t3)
+>>>>>>> 407bc4475a44218bf5cea7c24a1a01cac4376b74
         return self.boxes, self.scores, self.class_ids
 
     def prepare_input(self, image):
@@ -409,9 +418,14 @@ if __name__ == '__main__':
     # except rospy.ROSInterruptException:
     #     cv2.destroyAllWindows()
     try:
+<<<<<<< HEAD
         image = cv2.imread('/home/slsecret/Documents/BFMC/Control/street.jpg')
         
         detect = ObjectDetector(path='/home/slsecret/Documents/BFMC/Control/models/best.engine', show=False)
+=======
+        image = cv2.imread("/home/scandy/Documents/BFMC_pkgs/Control/street.jpg")
+        detect = ObjectDetector(path='/home/scandy/Documents/BFMC_pkgs/Control/models/best.engine', show=False)
+>>>>>>> 407bc4475a44218bf5cea7c24a1a01cac4376b74
         detect.image_callback(image)
     except Exception as e:
         print(e)
