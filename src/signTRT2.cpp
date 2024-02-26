@@ -10,8 +10,9 @@
 #include <vector>
 #include <std_msgs/Float32MultiArray.h>
 
+using namespace nvinfer1;
 Options options;
-
+Engine model(options);
 
 class signTRT{
     public:
@@ -19,7 +20,7 @@ class signTRT{
         // Specify what precision to use for inference
         // FP16 is approximately twice as fast as FP32.
         
-        signTRT(ros::NodeHandle& nh):it(nh), model(options), inputDims(inputDims)
+        signTRT(ros::NodeHandle& nh):it(nh)//, inputDims(inputDims)
         {
             
             //loading from yaml file
@@ -29,8 +30,8 @@ class signTRT{
             nh.getParam("/signFastest/showFlag",show);
             nh.getParam("/signFastest/printFlag",print);
             nh.getParam("signFastest/printDuration",printDuration);
-            std::string model_name;
-            nh.getParam("model",model_name);
+            std::string model_name = "best";
+            // nh.getParam("model",model_name);
             std::cout << "showFlag: " << show << std::endl;
             std::cout << "printFlag: " << print << std::endl;
             std::cout << "printDuration: " << printDuration << std::endl;
@@ -38,32 +39,36 @@ class signTRT{
             std::cout << "confidence_thresholds: " << confidence_thresholds.size() << std::endl;
             std::cout << "distance_thresholds: " << distance_thresholds.size() << std::endl;
             std::cout << "model: " << model_name << std::endl;
-
+            std::cout << "ck1"<< std::endl;
             //get the model path
             std::string filePathParam = __FILE__;
             size_t pos = filePathParam.rfind("/") + 1;
             filePathParam.replace(pos,std::string::npos, "model/" + model_name + ".engine");
-            const char* modelPath = filePathParam.c_str();
-
+            // const char* modelPath = filePathParam.c_str();
+            //input image dimension
+            inputDims = {640,640};
             //initialize engine
             
 
             // engine(options); //create engine object
-
-            model.m_engineName = modelPath;
-
+            model.m_engineName = filePathParam;
             // Load the TensorRT engine file from disk
-            bool succ = model.loadNetwork();
+            succ = model.loadNetwork();
+            if (!succ) {
+                throw std::runtime_error("Unable to load TRT engine.");
+            }
 
             //topics management
             pub = nh.advertise<std_msgs::Float32MultiArray>("sign",10);
             std::cout << "pub created" << std::endl;
-            depth_sub = it.subscribe("/camera/depth/image_raw",3,&signTRT::depthCallback,this);
-            ros::topic::waitForMessage<sensor_msgs::Image>("/camera/depth/image_raw",nh);
-            sub = it.subscribe("/camera/image_raw",3,&signTRT::imageCallback,this);
+            
+            // depth_sub = it.subscribe("/camera/depth/image_raw",3,&signTRT::depthCallback,this);
+            // ros::topic::waitForMessage<sensor_msgs::Image>("/camera/depth/image_raw",nh);
+            sub = it.subscribe("/camera/color/image_raw",3,&signTRT::imageCallback,this);
 
         }
         void depthCallback(const sensor_msgs::ImageConstPtr& msg){
+            std::cout << "dpt callback"<< std::endl;
             try{
                 cv_ptr_depth = cv_bridge::toCvCopy(msg,sensor_msgs::image_encodings::TYPE_32FC1);
             }
@@ -73,50 +78,94 @@ class signTRT{
             }
         }
         void imageCallback(const sensor_msgs::ImageConstPtr& msg){
+            std::cout<<"img callback"<< std::endl;
             if(printDuration) start = std::chrono::high_resolution_clock::now();
-            try{
-                cv_ptr = cv_bridge::toCvCopy(msg, sensor_msgs::image_encodings::RGB8);
-            }
-            catch (cv_bridge::Exception& e){
-                ROS_ERROR("cv_bridge exception: %s",e.what());
-                return;
-            }
+            std::cout << "ck7"<< std::endl;
+            // try{
+            cv_ptr = cv_bridge::toCvCopy(msg, sensor_msgs::image_encodings::RGB8);
+            // }
+            // catch (cv_bridge::Exception& e){
+            //     ROS_ERROR("cv_bridge exception: %s",e.what());
+            //     return;
+            // }
             //input image
             
             img.upload(cv_ptr->image);
+            // std::cout<<cv_ptr->image<<std::endl;
             //detection params
-            inputDims = model.getInputDims();
+            // inputDims = model.getInputDims();
+            batchSize = options.optBatchSize;
+            std::cout << "ck8"<< std::endl;
+            // resized = Engine::resizeKeepAspectRatioPadRightBottom(img,640,480); //inputDims[0].d[1], inputDims[0].d[2])
+            std::cout << "ck8"<< std::endl;
+            for (size_t j = 0; j < batchSize; ++j) { // For each element we want to add to the batch...
+            // TODO:
+            // You can choose to resize by scaling, adding padding, or a combination of the two in order to maintain the aspect ratio
+            // You can use the Engine::resizeKeepAspectRatioPadRightBottom to resize to a square while maintain the aspect ratio (adds padding where necessary to achieve this).
+                resized = Engine::resizeKeepAspectRatioPadRightBottom(img, inputDims[0],inputDims[1]);
+            // You could also perform a resize operation without maintaining aspect ratio with the use of padding by using the following instead:
+//            cv::cuda::resize(img, resized, cv::Size(inputDim.d[2], inputDim.d[1])); // TRT dims are (height, width) whereas OpenCV is (width, height)
+                input.emplace_back(std::move(resized));
+            }
+            inputs.emplace_back(std::move(input));
             
-            size_t batchSize = options.optBatchSize;
+            std::cout << "ck0"<< std::endl;
 
-            auto resized = Engine::resizeKeepAspectRatioPadRightBottom(img,inputDims[0].d[1], inputDims[0].d[2]);
-            inputs[0].emplace_back(std::move(resized));
 
-            model.runInference(inputs,featureVectors);
+            succ = model.runInference(inputs,featureVectors);
 
             //convert featureVectors into output boxes
             std::vector<cv::Rect> tmp_boxes;
             std::vector<float> scores;
             std::vector<int> classes;
-
+            std::cout << featureVectors[0].size()<< std::endl;
             int x1, y1, x2, y2;
+            outputDims = {model.getOutputDims()[0].d[0],model.getOutputDims()[0].d[1],model.getOutputDims()[0].d[2],model.getOutputDims()[0].d[3]};
+            std::cout << outputDims[0] <<std::endl;
+            std::cout << outputDims[1] <<std::endl;
+            std::cout << outputDims[2] <<std::endl;
+            std::cout << outputDims[3] <<std::endl;
+            std::cout << featureVectors[0][0].size()<< std::endl;
+            for (size_t batch = 0; batch < featureVectors.size(); ++batch) {
+                for (size_t outputNum = 0; outputNum < featureVectors[batch].size(); ++outputNum) {
+                    std::cout << "Batch " << batch << ", " << "output " << outputNum << std::endl;
+                    int i = 0;
+                    for (const auto &e:  featureVectors[batch][outputNum]) {
+                        std::cout << e << " ";
+                        if (++i == 100) {
+                            std::cout << "...";
+                            break;
+                        }
+                    }
+                    std::cout << "\n" << std::endl;
+                }
+            }
+
+
             for (size_t outputNum = 0; outputNum < featureVectors[0].size(); ++outputNum) {
-            double minVal, maxVal = 0.0;
-            cv::Point minLoc; cv::Point maxLoc;
-            cv::Range range(4, featureVectors[0][outputNum].size());
-            cv::Mat rowWithRange = cv::Mat(featureVectors[0][outputNum]).row(0)(cv::Rect(range.start, 0, range.size(), 1));
-            cv::minMaxLoc(rowWithRange,&minVal, &maxVal, &minLoc, &maxLoc);
-            cv::Point2i intPoint(maxLoc.x, maxLoc.y);
-            if (maxVal >= confidence_thresholds[intPoint.x]) {
-                scores.push_back(maxVal);
-                classes.push_back(intPoint.x);
-                x1 = featureVectors[0][outputNum][0]* img.cols;
-                y1 = featureVectors[0][outputNum][1] * img.rows;
-                y2 = y1 + featureVectors[0][outputNum][3] *  img.rows;
-                x2 = x1 + featureVectors[0][outputNum][2] *  img.cols;
-                tmp_boxes.push_back(cv::Rect(x1,y1,x2,y2));
+                double minVal, maxVal = 0.0;
+                cv::Point minLoc; cv::Point maxLoc;
+                cv::Mat rowWithRange = cv::Mat();//(cv::Rect(range.start, 0, range.size(), 1));
+                std::cout << "ck2"<< std::endl;
+                cv::minMaxLoc(rowWithRange,&minVal, &maxVal, &minLoc, &maxLoc);
+                std::cout << "ck2"<< std::endl;
+                cv::Point2i intPoint(maxLoc.x, maxLoc.y);
+                std::cout << "ck2"<< std::endl;
+                if (maxVal >= confidence_thresholds[intPoint.x]) {
+                    scores.push_back(maxVal);
+                    classes.push_back(intPoint.x);
+                    std::cout << "ck3"<< std::endl;
+                    x1 = featureVectors[0][outputNum][0]* img.cols;
+                    y1 = featureVectors[0][outputNum][1] * img.rows;
+                    y2 = y1 + featureVectors[0][outputNum][3] *  img.rows;
+                    x2 = x1 + featureVectors[0][outputNum][2] *  img.cols;
+                    std::cout << "ck4"<< std::endl;
+                    tmp_boxes.push_back(cv::Rect(x1,y1,x2,y2));
+                    std::cout << "ck5"<< std::endl;
+                }
             }
-            }
+
+            featureVectors.clear();
             
             //NMS suppression
             std::vector<int> indices;
@@ -247,10 +296,16 @@ class signTRT{
         std::vector<std::vector<std::vector<float>>> featureVectors; //output memory
         std::vector<std::vector<cv::cuda::GpuMat>> inputs; //input memory
         cv::cuda::GpuMat img;
-        std::vector<nvinfer1::Dims3>& inputDims;
-
+        // std::vector<nvinfer1::Dims3>& inputDims;
+        std::vector<int> inputDims;
+        std::vector<int> outputDims;
+        //auto& inputDims;
+        bool succ;
+        size_t batchSize;
+        cv::cuda::GpuMat resized;
+        std::vector<cv::cuda::GpuMat> input;
         
-        Engine model;
+        
         
 
         double computeMedianDepth(const cv::Mat& depthImage, const TargetBox& box) {
@@ -297,6 +352,8 @@ int main(int argc, char** argv) {
   // Initialize ROS node and publisher
   ros::init(argc, argv, "object_detector");
   ros::NodeHandle nh;
+  
+    
     options.precision = Precision::FP16;
     // If using INT8 precision, must specify path to directory containing calibration data.
     options.calibrationDataDirectoryPath = "";
@@ -304,6 +361,8 @@ int main(int argc, char** argv) {
     options.optBatchSize = 1;
     // Specify the maximum batch size we plan on running.
     options.maxBatchSize = 1;
+    // model(options);
+    std::cout << "ck0" << std::endl;
   signTRT signTRT(nh);
   //define rate
   ros::Rate loop_rate(25);

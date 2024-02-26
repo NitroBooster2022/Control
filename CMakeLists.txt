@@ -109,6 +109,9 @@ link_directories(~/TensorRT-8.6.1.6/lib)
 include_directories(/usr/local/cuda/targets/x86_64-linux/include)
 link_directories(/usr/local/cuda/targets/x86_64-linux/lib)
 
+# include_directories(/usr/local/cuda-11.8/include)
+# link_directories(/usr/local/cuda-11.8/lib)
+
 include_directories(/usr/local/include/opencv2)
 link_directories(/usr/local/lib)
 

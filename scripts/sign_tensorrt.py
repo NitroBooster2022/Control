@@ -12,7 +12,7 @@ from cv_bridge import CvBridge, CvBridgeError
 from std_msgs.msg import Header
 from utils.msg import Sign, Light
 import tensorrt as trt
-import onnxruntime
+# import onnxruntime
 
 
 
@@ -381,8 +381,8 @@ class ObjectDetector():
         self.class_names = ['oneway', 'highwayexit', 'stopsign', 'roundabout', 'park', 'crosswalk', 'noentry', 'highwayentrance', 'priority', 'light', 'block', 'girl', 'car']
         rospy.init_node('object_detection_node', anonymous=True)
         self.bridge = CvBridge()
-        self.depth_sub = rospy.Subscriber("/camera/depth/image_raw", Image, self.depth_callback)
-        self.image_sub = rospy.Subscriber("/camera/image_raw", Image, self.image_callback)
+        self.depth_sub = rospy.Subscriber("/camera/depth/image_rect_raw", Image, self.depth_callback)
+        self.image_sub = rospy.Subscriber("/camera/color/image_raw", Image, self.image_callback)
         # self.image_sub = rospy.Subscriber("automobile/image_raw/compressed", CompressedImage, self.image_callback)
         self.pub = rospy.Publisher("sign", Sign, queue_size = 3)
         self.light_pub = rospy.Publisher("light",Light, queue_size=3)
@@ -574,6 +574,8 @@ class InferenceModel:
         # print("ck1")
         trt_outputs = do_inference_v2(cuda_ctx=ctx,context=self.context,bindings=self.bindings,inputs = self.inputs,outputs=self.outputs,stream=self.stream)
         print(f"Inference time: {(time.perf_counter() - start)*1000:.2f} ms")
+        print(self.output_shapes)
+        print(len(trt_outputs))
         trt_outputs = [output.reshape(self.output_shapes[0][0]) for output in trt_outputs]
         return trt_outputs
 
@@ -812,6 +814,7 @@ def distance_make_sense(distance,objectID,box):
         else:
             height = box[3]-box[1]
             width = box[2]-box[0]
+            expected_distance = distance
             if objectID==12:
                 expected_distance = CAR_H2D_RATIO/height
             elif objectID==9:
