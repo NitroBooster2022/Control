@@ -11,7 +11,6 @@ from cv_bridge import CvBridge, CvBridgeError
 # from pynput import keyboard
 from std_msgs.msg import Header
 from control.msg import Sign, Light
-from control.msg import Sign, Light
 import tensorrt as trt
 # import onnxruntime
 
@@ -334,7 +333,6 @@ class ObjectDetector():
         self.bridge = CvBridge()
 
         self.depth_sub = rospy.Subscriber("/camera/depth/image_raw", Image, self.depth_callback)
->>>>>>> 407bc4475a44218bf5cea7c24a1a01cac4376b74
         self.image_sub = rospy.Subscriber("/camera/color/image_raw", Image, self.image_callback)
         # self.image_sub = rospy.Subscriber("automobile/image_raw/compressed", CompressedImage, self.image_callback)
         self.pub = rospy.Publisher("sign", Sign, queue_size = 3)

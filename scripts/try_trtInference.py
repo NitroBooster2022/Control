@@ -56,9 +56,6 @@ class ObjectDetector():
         t2 = time.time()
         print("time: ",t2-t1)
 
-        t2 = time.time()
-        print("time: ",t2-t1)
-
         if self.show:
             img = draw_detections(image, self.boxes, self.scores, self.class_ids)
             # cv2.rectangle(image, (100, 100), (200, 300), (255,0,0), 2)

@@ -43,7 +43,7 @@ if (${ncnn_FOUND})
   include_directories(${ncnn_INCLUDE})
 endif()
 
-find_package(OpenCV REQUIRED)
+find_package(OpenCV 4.5 REQUIRED)
 if (OpenCV_FOUND)
     message("OpenCV found ${OpenCV_VERSION}, ${OpenCV_INCLUDE_DIRS}")
 else()
@@ -55,6 +55,7 @@ add_message_files(
   FILES
   Lane.msg
   Sign.msg
+  Light.msg
 )
 
 ## Generate services in the 'srv' folder
@@ -88,7 +89,7 @@ catkin_package(
   image_transport
   cv_bridge
   sensor_msgs
-  opencv2
+  # opencv2
 )
 
 ## Specify additional locations of header files
@@ -108,6 +109,9 @@ link_directories(~/TensorRT-8.6.1.6/lib)
 
 include_directories(/usr/local/cuda/targets/x86_64-linux/include)
 link_directories(/usr/local/cuda/targets/x86_64-linux/lib)
+
+# include_directories(/usr/local/cuda-11.8/include)
+# link_directories(/usr/local/cuda-11.8/lib)
 
 # include_directories(/usr/local/cuda-11.8/include)
 # link_directories(/usr/local/cuda-11.8/lib)
