@@ -91,6 +91,7 @@ class signTRT{
             // }
             //input image
             std::cout << "ck1" << std::endl;
+            std::cout << "ck1" << std::endl;
             img.upload(cv_ptr->image);
             // std::cout<<cv_ptr->image<<std::endl;
             //detection params
@@ -351,6 +352,7 @@ int main(int argc, char** argv) {
   int opt;
 
   // Initialize ROS node and publisher
+    ros::init(argc, argv, "object_detector");
     ros::init(argc, argv, "object_detector");
   ros::NodeHandle nh;
   

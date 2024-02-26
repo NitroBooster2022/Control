@@ -11,6 +11,7 @@ from cv_bridge import CvBridge, CvBridgeError
 # from pynput import keyboard
 from std_msgs.msg import Header
 from control.msg import Sign, Light
+from control.msg import Sign, Light
 import tensorrt as trt
 # import onnxruntime
 
@@ -331,9 +332,7 @@ class ObjectDetector():
         self.class_names = ['oneway', 'highwayexit', 'stopsign', 'roundabout', 'park', 'crosswalk', 'noentry', 'highwayentrance', 'priority', 'light', 'block', 'girl', 'car']
         rospy.init_node('object_detection_node', anonymous=True)
         self.bridge = CvBridge()
-<<<<<<< HEAD
-        self.depth_sub = rospy.Subscriber("/camera/depth/image_rect_raw", Image, self.depth_callback)
-=======
+
         self.depth_sub = rospy.Subscriber("/camera/depth/image_raw", Image, self.depth_callback)
 >>>>>>> 407bc4475a44218bf5cea7c24a1a01cac4376b74
         self.image_sub = rospy.Subscriber("/camera/color/image_raw", Image, self.image_callback)
@@ -528,14 +527,9 @@ class InferenceModel:
         # print("ck1")
         trt_outputs = do_inference_v2(cuda_ctx=ctx,context=self.context,bindings=self.bindings,inputs = self.inputs,outputs=self.outputs,stream=self.stream)
         print(f"Inference time: {(time.perf_counter() - start)*1000:.2f} ms")
-<<<<<<< HEAD
-        print(self.output_shapes)
-        print(len(trt_outputs))
-=======
         # print("output shape: ",trt_outputs[0].shape, trt_outputs[1].shape)
         print(len(trt_outputs))
         print("output shape: ", self.output_shapes)
->>>>>>> 407bc4475a44218bf5cea7c24a1a01cac4376b74
         trt_outputs = [output.reshape(self.output_shapes[0][0]) for output in trt_outputs]
         return trt_outputs
 
