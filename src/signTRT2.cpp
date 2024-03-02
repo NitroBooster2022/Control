@@ -23,7 +23,8 @@ class signTRT{
         // Specify what precision to use for inference
         // FP16 is approximately twice as fast as FP32.
         
-        signTRT(ros::NodeHandle& nh):it(nh)//, inputDims(inputDims)
+        signTRT(ros::NodeHandle& nh):it(nh),reshapedOutput(1,std::vector<std::vector<float>>(8400, std::vector<float>(17)))
+        // scores(10),classes(10),tmp_boxes(10)//, inputDims(inputDims)
         {
             
             //loading from yaml file
@@ -42,13 +43,13 @@ class signTRT{
             std::cout << "confidence_thresholds: " << confidence_thresholds.size() << std::endl;
             std::cout << "distance_thresholds: " << distance_thresholds.size() << std::endl;
             std::cout << "model: " << model_name << std::endl;
-            std::cout << "ck1"<< std::endl;
             //get the model path
             std::string filePathParam = __FILE__;
             size_t pos = filePathParam.rfind("/") + 1;
             filePathParam.replace(pos,std::string::npos, "model/" + model_name + ".engine");
             // const char* modelPath = filePathParam.c_str();
             //input image dimension
+            // inputDims = {model.getInputDims()[0].d[0],model.getInputDims()[0].d[1]};
             inputDims = {640,640};
             //initialize engine
             
@@ -65,13 +66,13 @@ class signTRT{
             pub = nh.advertise<std_msgs::Float32MultiArray>("sign",10);
             std::cout << "pub created" << std::endl;
             
-            // depth_sub = it.subscribe("/camera/depth/image_raw",3,&signTRT::depthCallback,this);
-            // ros::topic::waitForMessage<sensor_msgs::Image>("/camera/depth/image_raw",nh);
+            depth_sub = it.subscribe("/camera/depth/image_raw",3,&signTRT::depthCallback,this);
+            ros::topic::waitForMessage<sensor_msgs::Image>("/camera/depth/image_raw",nh);
             sub = it.subscribe("/camera/color/image_raw",3,&signTRT::imageCallback,this);
 
         }
         void depthCallback(const sensor_msgs::ImageConstPtr& msg){
-            std::cout << "dpt callback"<< std::endl;
+            // std::cout << "dpt callback"<< std::endl;
             try{
                 cv_ptr_depth = cv_bridge::toCvCopy(msg,sensor_msgs::image_encodings::TYPE_32FC1);
             }
@@ -81,27 +82,22 @@ class signTRT{
             }
         }
         void imageCallback(const sensor_msgs::ImageConstPtr& msg){
-            std::cout<<"img callback"<< std::endl;
+            // std::cout<<"img callback"<< std::endl;
             if(printDuration) start = std::chrono::high_resolution_clock::now();
-            std::cout << "ck7"<< std::endl;
             // try{
-            cv_ptr = cv_bridge::toCvCopy(msg, sensor_msgs::image_encodings::RGB8);
+            cv_ptr = cv_bridge::toCvCopy(msg, sensor_msgs::image_encodings::BGR8);
             // }
             // catch (cv_bridge::Exception& e){
             //     ROS_ERROR("cv_bridge exception: %s",e.what());
             //     return;
             // }
             //input image
-            std::cout << "ck1" << std::endl;
-            std::cout << "ck1" << std::endl;
             img.upload(cv_ptr->image);
             // std::cout<<cv_ptr->image<<std::endl;
             //detection params
             // inputDims = model.getInputDims();
             batchSize = options.optBatchSize;
-            std::cout << "ck8"<< std::endl;
             // resized = Engine::resizeKeepAspectRatioPadRightBottom(img,640,480); //inputDims[0].d[1], inputDims[0].d[2])
-            std::cout << "ck8"<< std::endl;
             for (size_t j = 0; j < batchSize; ++j) { // For each element we want to add to the batch...
             // TODO:
             // You can choose to resize by scaling, adding padding, or a combination of the two in order to maintain the aspect ratio
@@ -113,65 +109,102 @@ class signTRT{
             }
             inputs.emplace_back(std::move(input));
             
-            std::cout << "ck0"<< std::endl;
 
 
             succ = model.runInference(inputs,featureVectors);
-
+            
+            inputs.clear();
             //convert featureVectors into output boxes
-            std::vector<cv::Rect> tmp_boxes;
-            std::vector<float> scores;
-            std::vector<int> classes;
-            std::cout << featureVectors[0].size()<< std::endl;
-            int x1, y1, x2, y2;
+            
+            // std::cout << featureVectors[0].size()<< std::endl;
             outputDims = {model.getOutputDims()[0].d[0],model.getOutputDims()[0].d[1],model.getOutputDims()[0].d[2],model.getOutputDims()[0].d[3]};
-            std::cout << outputDims[0] <<std::endl;
-            std::cout << outputDims[1] <<std::endl;
-            std::cout << outputDims[2] <<std::endl;
-            std::cout << outputDims[3] <<std::endl;
-            std::cout << featureVectors[0][0].size()<< std::endl;
-            for (size_t batch = 0; batch < featureVectors.size(); ++batch) {
-                for (size_t outputNum = 0; outputNum < featureVectors[batch].size(); ++outputNum) {
-                    std::cout << "Batch " << batch << ", " << "output " << outputNum << std::endl;
-                    int i = 0;
-                    for (const auto &e:  featureVectors[batch][outputNum]) {
-                        std::cout << e << " ";
-                        if (++i == 100) {
-                            std::cout << "...";
-                            break;
+            int x1, y1, x2, y2;
+            // std::cout << outputDims[0] <<std::endl;
+            // std::cout << outputDims[1] <<std::endl;
+            // std::cout << outputDims[2] <<std::endl;
+            // std::cout << outputDims[3] <<std::endl;
+            // std::cout << featureVectors[0][0].size()<< std::endl;
+            //reshaping featureVector from 1,1,142800 to 1,8400,17
+            // for (size_t batch = 0; batch < featureVectors.size(); ++batch) {
+            //     for (size_t outputNum = 0; outputNum < featureVectors[batch].size(); ++outputNum) {
+            // if (*(std::max_element(featureVectors[0][0].begin(),featureVectors[0][0].end()))>640){
+            //     std::cout << "error max x > 640" << std::endl;
+                
+            // }
+            for (int i = 0; i < outputDims[0]; ++i) {
+                for (int j = 0; j < outputDims[2]; ++j) { //outputDims[2] = 8400
+                    for (int k = 0; k < outputDims[1]; ++k) { //outputDims[1] = 17 
+                        reshapedOutput[i][j][k] = featureVectors[0][0][(j+k*outputDims[2])];
+                        //rescale box center from img size 640*640 to 640*480
+                        // if (k==1){
+                        //     reshapedOutput[i][j][k] = reshapedOutput[i][j][k]*480/;
+                        // }
+                    }
+                
+                }
+            }
+            featureVectors.clear();
+                
+            // int index = 0;
+            for (int i=0;i<reshapedOutput.size();i++){
+                for (int j=0;j<reshapedOutput[0].size();j++){ //8400
+                    if (reshapedOutput[i][j][1]+reshapedOutput[i][j][3]/2 <=480){ //if the boundary of the box is in the non padded region of the image
+                        maxscore_index = (std::max_element(reshapedOutput[i][j].begin()+4, reshapedOutput[i][j].end()));
+                        maxscore = *maxscore_index;
+                        class_ind = std::distance(reshapedOutput[i][j].begin()+4,maxscore_index);
+                        
+                        if (maxscore >= confidence_thresholds[class_ind-1]){
+                            // std::cout << maxscore << std::endl;
+                            // std::cout << class_ind << std::endl;
+                            scores.push_back(maxscore);
+                            classes.push_back(static_cast<int>(class_ind-1));
+                            // scores[index] = maxscore; //seg fault
+                            // classes[index] = static_cast<int>(class_ind);
+                            x1 = static_cast<int>(reshapedOutput[i][j][0]-reshapedOutput[i][j][2]/2);
+                            y1 = static_cast<int>(reshapedOutput[i][j][1]-reshapedOutput[i][j][3]/2);
+                            y2 = static_cast<int>(y1 + reshapedOutput[i][j][3]);
+                            x2 = static_cast<int>(x1 + reshapedOutput[i][j][2]);
+                            // std::cout << "rect" << std::endl;
+                            // std::cout << reshapedOutput[i][j][0] << std::endl;
+                            // std::cout << reshapedOutput[i][j][1] << std::endl;
+                            // std::cout << reshapedOutput[i][j][2] << std::endl;
+                            // std::cout << reshapedOutput[i][j][3] << std::endl;
+                            tmp_boxes.push_back(cv::Rect(x1,y1,x2,y2));
+                            // index ++;
+                    
+                    
                         }
                     }
-                    std::cout << "\n" << std::endl;
                 }
             }
+            std::cout<<scores[0]<<std::endl;
+            // for (size_t outputNum = 0; outputNum < featureVectors[0].size(); ++outputNum) {
+            //     double minVal, maxVal = 0.0;
+            //     cv::Point minLoc; cv::Point maxLoc;
+            //     cv::Mat rowWithRange = cv::Mat(featureVectors[batch][outputNum]);//(cv::Rect(range.start, 0, range.size(), 1));
+            //     std::cout << "ck2"<< std::endl;
+            //     cv::minMaxLoc(rowWithRange,&minVal, &maxVal, &minLoc, &maxLoc);
+            //     std::cout << "ck2"<< std::endl;
+            //     cv::Point2i intPoint(maxLoc.x, maxLoc.y);
+            //     std::cout << "ck2"<< std::endl;
+            //     if (maxVal >= confidence_thresholds[intPoint.x]) {
+            //         scores.push_back(maxVal);
+            //         classes.push_back(intPoint.x);
+            //         std::cout << "ck3"<< std::endl;
+            //         x1 = featureVectors[0][outputNum][0]* img.cols;
+            //         y1 = featureVectors[0][outputNum][1] * img.rows;
+            //         y2 = y1 + featureVectors[0][outputNum][3] *  img.rows;
+            //         x2 = x1 + featureVectors[0][outputNum][2] *  img.cols;
+            //         std::cout << "ck4"<< std::endl;
+            //         tmp_boxes.push_back(cv::Rect(x1,y1,x2,y2));
+            //         std::cout << "ck5"<< std::endl;
+            //     }
+            // }
 
-
-            for (size_t outputNum = 0; outputNum < featureVectors[0].size(); ++outputNum) {
-                double minVal, maxVal = 0.0;
-                cv::Point minLoc; cv::Point maxLoc;
-                cv::Mat rowWithRange = cv::Mat();//(cv::Rect(range.start, 0, range.size(), 1));
-                std::cout << "ck2"<< std::endl;
-                cv::minMaxLoc(rowWithRange,&minVal, &maxVal, &minLoc, &maxLoc);
-                std::cout << "ck2"<< std::endl;
-                cv::Point2i intPoint(maxLoc.x, maxLoc.y);
-                std::cout << "ck2"<< std::endl;
-                if (maxVal >= confidence_thresholds[intPoint.x]) {
-                    scores.push_back(maxVal);
-                    classes.push_back(intPoint.x);
-                    std::cout << "ck3"<< std::endl;
-                    x1 = featureVectors[0][outputNum][0]* img.cols;
-                    y1 = featureVectors[0][outputNum][1] * img.rows;
-                    y2 = y1 + featureVectors[0][outputNum][3] *  img.rows;
-                    x2 = x1 + featureVectors[0][outputNum][2] *  img.cols;
-                    std::cout << "ck4"<< std::endl;
-                    tmp_boxes.push_back(cv::Rect(x1,y1,x2,y2));
-                    std::cout << "ck5"<< std::endl;
-                }
-            }
-
-            featureVectors.clear();
+            
             
             //NMS suppression
+            // std::cout << "ck1" <<std::endl;
             std::vector<int> indices;
             cv::dnn::NMSBoxes(tmp_boxes, scores, 0.25, 0.45, indices, 0.5);
             TargetBox tmp_box;
@@ -182,6 +215,10 @@ class signTRT{
             tmp_box.y1 = tmp_boxes[indices[i]].y;
             tmp_box.x2 = tmp_boxes[indices[i]].x +  tmp_boxes[indices[i]].width; 
             tmp_box.y2 = tmp_boxes[indices[i]].y +  tmp_boxes[indices[i]].height;
+            // std::cout << tmp_box.x1 << std::endl;
+            // std::cout << tmp_box.y1 << std::endl;
+            // std::cout << tmp_box.x2 << std::endl;
+            // std::cout << tmp_box.y2 << std::endl;
             boxes.push_back(tmp_box);
             }
 
@@ -191,8 +228,11 @@ class signTRT{
                 int class_id = box.cate;
                 float confidence = box.score;
                 if (confidence >= confidence_thresholds[class_id]){
+                    // std::cout << "ck3" <<std::endl;
                     double distance = computeMedianDepth(cv_ptr_depth->image,box)/1000;
+                    // std::cout << "ck4" <<std::endl;
                     if (distance <= distance_thresholds[class_id]){
+                        // std::cout << "ck5" <<std::endl;
                         sign_msg.data.push_back(box.x1);
                         sign_msg.data.push_back(box.y1);
                         sign_msg.data.push_back(box.x2);
@@ -204,6 +244,9 @@ class signTRT{
                     }
                 }
             }
+            scores.clear();
+            classes.clear();
+            tmp_boxes.clear();
 
             if(hsy){
                 std_msgs::MultiArrayDimension dim;
@@ -214,11 +257,11 @@ class signTRT{
             }
             //publish message
             pub.publish(sign_msg);
-            if (printDuration) {
-                stop = std::chrono::high_resolution_clock::now();
-                duration = std::chrono::duration_cast<std::chrono::microseconds>(stop-start);
-                ROS_INFO("sign durations: %ld", duration.count());
-            }
+            // if (printDuration) {
+            //     stop = std::chrono::high_resolution_clock::now();
+            //     duration = std::chrono::duration_cast<std::chrono::microseconds>(stop-start);
+            //     ROS_INFO("sign durations: %ld", duration.count());
+            // }
 
             //display
             if(show) {
@@ -294,10 +337,19 @@ class signTRT{
         std::vector<float> confidence_thresholds;
         std::vector<float> distance_thresholds;
         std::vector<std::string> class_names;
+
+        std::vector<cv::Rect> tmp_boxes;
+        std::vector<float> scores;
+        std::vector<int> classes;
+
+        size_t class_ind;
+        float maxscore;
+        std::vector<float>::iterator maxscore_index;
     
     //engine inference related
         
         std::vector<std::vector<std::vector<float>>> featureVectors; //output memory
+        std::vector<std::vector<std::vector<float>>> reshapedOutput; //1,8400,17
         std::vector<std::vector<cv::cuda::GpuMat>> inputs; //input memory
         cv::cuda::GpuMat img;
         // std::vector<nvinfer1::Dims3>& inputDims;
@@ -314,11 +366,17 @@ class signTRT{
 
         double computeMedianDepth(const cv::Mat& depthImage, const TargetBox& box) {
             // Ensure the bounding box coordinates are valid
+            // std::cout <<"compute1"<<std::endl;
             int x1 = std::max(0, box.x1);
             int y1 = std::max(0, box.y1);
             int x2 = std::min(depthImage.cols, box.x2);
             int y2 = std::min(depthImage.rows, box.y2);
+            // std::cout << x1 << std::endl;
+            // std::cout << y1 << std::endl;
+            // std::cout << x2 << std::endl;
+            // std::cout << y2 << std::endl;
             croppedDepth = depthImage(cv::Rect(x1, y1, x2 - x1, y2 - y1));
+            // std::cout << "compute2" <<std::endl;
             std::vector<double> depths;
             for (int i = 0; i < croppedDepth.rows; ++i) {
             for (int j = 0; j < croppedDepth.cols; ++j) {
@@ -331,6 +389,7 @@ class signTRT{
             if (depths.empty()) {
             return -1;
             }
+            // std::cout << "compute3" <<std::endl;
             std::sort(depths.begin(), depths.end());
             // double min = depths[0];
             // double max = depths[depths.size()-1];

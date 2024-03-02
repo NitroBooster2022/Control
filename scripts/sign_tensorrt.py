@@ -527,20 +527,27 @@ class InferenceModel:
         print(f"Inference time: {(time.perf_counter() - start)*1000:.2f} ms")
         # print("output shape: ",trt_outputs[0].shape, trt_outputs[1].shape)
         print(len(trt_outputs))
+        print(type(trt_outputs[0]))
+        print(trt_outputs[0].shape)
         print("output shape: ", self.output_shapes)
+        print(self.output_shapes[0][0])
         trt_outputs = [output.reshape(self.output_shapes[0][0]) for output in trt_outputs]
+        print(type(trt_outputs[0]))
+        print(trt_outputs[0].shape)
         return trt_outputs
 
     def new_process_output(self, outputs):
         outputs = np.array([cv2.transpose(outputs[0][0])])
-        rows = outputs.shape[1]
+        rows = outputs.shape[1] #rows = 8400
+        # print(outputs.shape)
 
         boxes = []
         scores = []
         class_ids = []
 
         # Iterate through output to collect bounding boxes, confidence scores, and class IDs
-        for i in range(rows):
+        for i in range(rows): 
+            # print(i)
             classes_scores = outputs[0][i][4:]
             (minScore, maxScore, minClassLoc, (x, maxClassIndex)) = cv2.minMaxLoc(classes_scores)
             if maxScore >= 0.25:
@@ -569,7 +576,8 @@ class InferenceModel:
         return box
 
     def rescale_boxes(self, box):
-
+        print("img w: ",self.img_width)
+        print("img h: ",self.img_height)
         # Rescale boxes to original image dimensions
         input_shape = np.array([self.input_width, self.input_height, self.input_width, self.input_height])
         box = np.divide(box, input_shape, dtype=np.float32)
