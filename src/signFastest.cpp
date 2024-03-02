@@ -16,8 +16,22 @@ class signFastest {
         {
             std::cout.precision(4);
             nh.getParam("class_names", class_names);
-            nh.getParam("confidence_thresholds", confidence_thresholds);
-            nh.getParam("max_distance_thresholds", distance_thresholds);
+            // nh.getParam("confidence_thresholds", confidence_thresholds);
+            if(!nh.getParam("confidence_thresholds", confidence_thresholds)) {
+                ROS_WARN("Failed to get 'confidence_thresholds' parameter.");
+            } else {
+                std::cout << "confidence_thresholds: " << confidence_thresholds.size() << std::endl;
+            }
+            if (!nh.getParam("max_distance_thresholds", distance_thresholds)) {
+                ROS_WARN("Failed to get 'max_distance_thresholds' parameter.");
+            } else {
+                for (float val : distance_thresholds) {
+                    ROS_INFO("Loaded threshold: %f", val);
+                }
+                for(int i = 0; i < class_names.size(); i++) {
+                    ROS_INFO("class_names: %s, distance_thresholds: %f", class_names[i].c_str(), distance_thresholds[i]);
+                }
+            }
             nh.getParam("/signFastest/showFlag", show);
             nh.getParam("/signFastest/printFlag", print);
             nh.getParam("/signFastest/printFlag", printDuration); //printDuration
