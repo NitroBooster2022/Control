@@ -17,7 +17,7 @@ class signFastest {
             std::cout.precision(4);
             nh.getParam("class_names", class_names);
             nh.getParam("confidence_thresholds", confidence_thresholds);
-            nh.getParam("distance_thresholds", distance_thresholds);
+            nh.getParam("max_distance_thresholds", distance_thresholds);
             nh.getParam("/signFastest/showFlag", show);
             nh.getParam("/signFastest/printFlag", print);
             nh.getParam("/signFastest/printFlag", printDuration); //printDuration
@@ -62,6 +62,7 @@ class signFastest {
                 ros::topic::waitForMessage<sensor_msgs::Image>("/camera/depth/image_raw", nh);
             }
             sub = it.subscribe("/camera/color/image_raw", 3, &signFastest::imageCallback, this);
+            // sub = it.subscribe("/camera/image_raw", 3, &signFastest::imageCallback, this);
         }
         enum OBJECT {
             ONEWAY,
