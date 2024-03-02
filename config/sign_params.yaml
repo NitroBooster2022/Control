@@ -1,4 +1,4 @@
 class_names: ["oneway", "highwayentrance", "stopsign", "roundabout", "park", "crosswalk", "noentry", "highwayexit", "priority", "lights", "block", "pedestrian", "car"]
 confidence_thresholds: [0.8, 0.8, 0.8, 0.8, 0.5, 0.8, 0.8, 0.8, 0.8, 0.8, 0.8, 0.8, 0.9]
-distance_thresholds: [2.0, 2.0, 2.0, 2.0, 2.4, 2.0, 2.0, 2.0, 2.0, 2.0, 2.0, 2.0, 1.2]
-model: "sissi11"
+max_distance_thresholds: [1.0, 2.0, 2.0, 2.0, 2.4, 2.0, 2.0, 0.9, 2.0, 2.0, 2.0, 1., 0.9]
+model: "sissi753-opt"

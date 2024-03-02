@@ -324,7 +324,7 @@ class ObjectDetector():
         # self.model = os.path.dirname(os.path.realpath(__file__)).replace("scripts", "models/np12s2.onnx")
         # self.model = os.path.dirname(os.path.realpath(__file__)).replace("scripts", "models/sissi9s.onnx")
         # self.model = os.path.dirname(os.path.realpath(__file__)).replace("scripts", "models/ningp10.onnx")
-        self.model = os.path.dirname(os.path.realpath(__file__)).replace("scripts", "models/best.engine")
+        self.model = os.path.dirname(os.path.realpath(__file__)).replace("scripts", "models/best20.engine")
         print("Object detection using tensorrt with: "+self.model)
         self.detector = InferenceModel(self.model, conf_thres=0.45, iou_thres=0.35)
         # self.net = cv2.dnn.readNet(self.model)

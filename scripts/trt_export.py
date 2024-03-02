@@ -4,7 +4,8 @@ import tensorrt as trt
 import onnx
 import lib.common as common
 import os
-# model = YOLO('/media/slsecret/E624108524105B3F/Users/simon/Downloads/linxy/YOLOv8/model_city/best3_cococityyololg40/train7/weights/best.pt')  # initialize
+# pt_path = os.path.dirname(os.path.realpath(__file__)).replace("scripts", "models/best.pt")
+# model = YOLO(pt_path)  # initialize
 
 # model.export(format='onnx')  # export
 
@@ -14,8 +15,6 @@ onnx_model_path = os.path.dirname(os.path.realpath(__file__)).replace("scripts",
 # Load the ONNX model
 onnx_model = onnx.load(onnx_model_path)
 
-# Load the PyTorch model
-# model = torch.load('C:/Users/simon/Downloads/linxy/YOLOv8/try3_26/detect/train/weights/best.pt')
 # Create a TensorRT engine
 TRT_LOGGER = trt.Logger(trt.Logger.WARNING)
 with trt.Builder(TRT_LOGGER) as builder, builder.create_network(
@@ -34,5 +33,5 @@ with trt.Builder(TRT_LOGGER) as builder, builder.create_network(
     else:
         plan = builder.build_serialized_network(network,config)
         # engine = runtime.deserialize_cuda_engine(plan)
-        with open(os.path.dirname(os.path.realpath(__file__)).replace("scripts", "models/best.engine"), 'wb') as f:
+        with open(os.path.dirname(os.path.realpath(__file__)).replace("scripts", "models/best20.engine"), 'wb') as f:
             f.write(plan)

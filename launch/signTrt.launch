@@ -1,0 +1,14 @@
+<launch>
+
+<rosparam command="load" file="$(find control)/config/sign_params.yaml" />
+<arg name="show" default="false"/>
+<arg name="print" default="true"/>
+<arg name="print_duration" default="true"/>
+<!-- <node pkg="control" name="signFastest" output="screen" type="signTRT2" required="true"> -->
+<node pkg="control" name="signTrt" output="screen" type="sign_tensorrt.py" required="true">
+    <param name="showFlag" value="$(arg show)"/>
+    <param name="printFlag" value="$(arg print)"/>
+    <param name="printDuration" value="$(arg print_duration)"/>
+</node>
+
+</launch>

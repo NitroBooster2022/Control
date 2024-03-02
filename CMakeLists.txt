@@ -126,16 +126,16 @@ link_directories(/usr/local/lib)
 #   src/cameraExample.cpp
 #   src/yolo-fastestv2.cpp
 # )
-# add_executable(lane
-#   src/lane.cpp
-# )
+add_executable(lane
+  src/lane.cpp
+)
 # add_executable(sign
 #   src/sign.cpp
 # )
-# add_executable(signFastest
-#   src/signFastest.cpp
-#   src/yolo-fastestv2.cpp
-# )
+add_executable(signFastest
+  src/signFastest.cpp
+  src/yolo-fastestv2.cpp
+)
 add_executable(signTRT2
 src/signTRT2.cpp
 src/engine.cpp
@@ -172,16 +172,16 @@ add_executable(bridge
 #   ${catkin_LIBRARIES}
 #   ncnn ${OpenCV_LIBS}
 # )
-# target_link_libraries(lane
-#   ${catkin_LIBRARIES}
-# )
+target_link_libraries(lane
+  ${catkin_LIBRARIES}
+)
 # target_link_libraries(sign
 #   ${catkin_LIBRARIES}
 # )
-# target_link_libraries(signFastest
-#   ${catkin_LIBRARIES}
-#   ncnn ${OpenCV_LIBS}
-# )
+target_link_libraries(signFastest
+  ${catkin_LIBRARIES}
+  ncnn ${OpenCV_LIBS}
+)
 target_link_libraries(bridge
   ${catkin_LIBRARIES}
 )
