@@ -245,7 +245,7 @@ class signFastest {
         bool hasDepthImage;
         bool real;
         cv_bridge::CvImagePtr cv_ptr;
-        cv_bridge::CvImagePtr cv_ptr_depth;
+        cv_bridge::CvImagePtr cv_ptr_depth = nullptr;
         cv::Mat normalizedDepthImage;
         cv::Mat croppedDepth;
 
