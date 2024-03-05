@@ -311,7 +311,7 @@ def lightColor_identify(img):
     
 # ----------------------------------------helpers end-------------------------------------------------------
 
-global depth_img
+
 confidence_thresholds = [0.8, 0.8, 0.8, 0.8, 0.5, 0.8, 0.8, 0.8, 0.8, 0.8, 0.8, 0.8, 0.9]
 distance_thresholds = [2.0, 2.0, 2.0, 2.0, 2.4, 2.0, 2.0, 2.0, 2.0, 2.0, 2.0, 2.0, 1.2]
 SIGN_H2D_RATIO = 31.57
@@ -324,7 +324,7 @@ class ObjectDetector():
         # self.model = os.path.dirname(os.path.realpath(__file__)).replace("scripts", "models/np12s2.onnx")
         # self.model = os.path.dirname(os.path.realpath(__file__)).replace("scripts", "models/sissi9s.onnx")
         # self.model = os.path.dirname(os.path.realpath(__file__)).replace("scripts", "models/ningp10.onnx")
-        self.model = os.path.dirname(os.path.realpath(__file__)).replace("scripts", "models/best20.engine")
+        self.model = os.path.dirname(os.path.realpath(__file__)).replace("scripts", "models/best_jetson.engine")
         print("Object detection using tensorrt with: "+self.model)
         self.detector = InferenceModel(self.model, conf_thres=0.45, iou_thres=0.35)
         # self.net = cv2.dnn.readNet(self.model)
@@ -332,7 +332,7 @@ class ObjectDetector():
         rospy.init_node('object_detection_node', anonymous=True)
         self.bridge = CvBridge()
 
-        self.depth_sub = rospy.Subscriber("/camera/depth/image_raw", Image, self.depth_callback)
+        self.depth_sub = rospy.Subscriber("/camera/aligned_depth_to_color/image_raw", Image, self.depth_callback)
         self.image_sub = rospy.Subscriber("/camera/color/image_raw", Image, self.image_callback)
         # self.image_sub = rospy.Subscriber("automobile/image_raw/compressed", CompressedImage, self.image_callback)
         self.pub = rospy.Publisher("sign", Sign, queue_size = 3)
@@ -340,11 +340,12 @@ class ObjectDetector():
         self.p = Sign()
         self.light_color = Light()
         self.rate = rospy.Rate(15)
+        self.depth_img = None
 
 
     def depth_callback(self, data):
-        global depth_img
-        depth_img = self.bridge.imgmsg_to_cv2(data,desired_encoding='passthrough')
+        
+        self.depth_img = self.bridge.imgmsg_to_cv2(data,desired_encoding='passthrough')
     
     
     def image_callback(self, data):
@@ -352,6 +353,7 @@ class ObjectDetector():
         Callback function for the image processed topic
         :param data: Image data in the ROS Image format
         """
+        
         t1 = time.time()
         # Convert the image to the OpenCV format
         image = self.bridge.imgmsg_to_cv2(data, "bgr8")
@@ -372,7 +374,7 @@ class ObjectDetector():
         self.distances=[]
         for i in range(len(self.scores)):
             if self.scores[i] >= confidence_thresholds[self.class_ids[i]]:
-                distance = computeMedianDepth(depth_img,self.boxes[i])/1000
+                distance = computeMedianDepth(self.depth_img,self.boxes[i])/1000
                 if distance_make_sense(distance,self.class_ids[i],self.boxes[i]):
                     self.distances.append(distance)
                 else:
@@ -526,20 +528,25 @@ class InferenceModel:
         trt_outputs = do_inference_v2(cuda_ctx=ctx,context=self.context,bindings=self.bindings,inputs = self.inputs,outputs=self.outputs,stream=self.stream)
         print(f"Inference time: {(time.perf_counter() - start)*1000:.2f} ms")
         # print("output shape: ",trt_outputs[0].shape, trt_outputs[1].shape)
-        print(len(trt_outputs))
-        print(type(trt_outputs[0]))
-        print(trt_outputs[0].shape)
+        print("len(trt_outputs): ", len(trt_outputs))
+        print("trt_outputs[0].shape: ",trt_outputs[0].shape)
         print("output shape: ", self.output_shapes)
-        print(self.output_shapes[0][0])
+        print("self.output_shapes[0][0]: ",self.output_shapes[0][0])
         trt_outputs = [output.reshape(self.output_shapes[0][0]) for output in trt_outputs]
-        print(type(trt_outputs[0]))
-        print(trt_outputs[0].shape)
+        #print("trt_outputs[0][0]: ",(trt_outputs[0][0]))
+        print("trt_outputs[0].shape: ",trt_outputs[0].shape)
         return trt_outputs
 
     def new_process_output(self, outputs):
         outputs = np.array([cv2.transpose(outputs[0][0])])
         rows = outputs.shape[1] #rows = 8400
-        # print(outputs.shape)
+        #np.set_printoptions(precision=4, suppress=None, threshold=np.inf)
+        #print(type(outputs[0][0]))
+        #print(outputs.shape)
+        #print(len(outputs[0][0]))
+        #print("outputs: ",outputs[0][0][0])
+        #rows = (outputs[0].shape[1])
+        print(rows)
 
         boxes = []
         scores = []
@@ -576,8 +583,8 @@ class InferenceModel:
         return box
 
     def rescale_boxes(self, box):
-        print("img w: ",self.img_width)
-        print("img h: ",self.img_height)
+        #print("img w: ",self.img_width)
+        #print("img h: ",self.img_height)
         # Rescale boxes to original image dimensions
         input_shape = np.array([self.input_width, self.input_height, self.input_width, self.input_height])
         box = np.divide(box, input_shape, dtype=np.float32)
@@ -753,6 +760,8 @@ def draw_comparison(img1, img2, name1, name2, fontsize=2.6, text_thickness=3):
     return combined_img
 
 def computeMedianDepth(depthimg,box):
+    if depthimg is None:
+    	return -1
     x1 = int(max(0,box[0]))
     x2 = int(max(0,box[2]))
     y1 = int(max(0,box[1]))

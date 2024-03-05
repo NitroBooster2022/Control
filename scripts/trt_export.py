@@ -1,16 +1,16 @@
-# from ultralytics import YOLO
+#from ultralytics import YOLO
 import tensorrt as trt
 # from ultralytics import YOLO
 import onnx
 import lib.common as common
 import os
-# pt_path = os.path.dirname(os.path.realpath(__file__)).replace("scripts", "models/best.pt")
-# model = YOLO(pt_path)  # initialize
+#pt_path = os.path.dirname(os.path.realpath(__file__)).replace("scripts", "models/ningping12.pt")
+#model = YOLO(pt_path)  # initialize
 
-# model.export(format='onnx')  # export
+#model.export(format='onnx')  # export
 
 # Path to the ONNX model file
-onnx_model_path = os.path.dirname(os.path.realpath(__file__)).replace("scripts", "models/best.onnx")
+onnx_model_path = os.path.dirname(os.path.realpath(__file__)).replace("scripts", "models/yolov2_10.onnx")
 
 # Load the ONNX model
 onnx_model = onnx.load(onnx_model_path)
@@ -33,5 +33,5 @@ with trt.Builder(TRT_LOGGER) as builder, builder.create_network(
     else:
         plan = builder.build_serialized_network(network,config)
         # engine = runtime.deserialize_cuda_engine(plan)
-        with open(os.path.dirname(os.path.realpath(__file__)).replace("scripts", "models/best20.engine"), 'wb') as f:
+        with open(os.path.dirname(os.path.realpath(__file__)).replace("scripts", "models/yolov2_10.engine"), 'wb') as f:
             f.write(plan)

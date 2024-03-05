@@ -28,6 +28,9 @@ endif()
 
 find_package (Eigen3 REQUIRED )
 set(ncnn_DIR ${CMAKE_CURRENT_SOURCE_DIR}/src/lib/cmake/ncnn)
+set(glslang_DIR "/home/scandy/ncnn/build/install/lib/cmake/glslang")
+list(APPEND CMAKE_PREFIX_PATH "/home/scandy/ncnn")
+
 
 # For finding FindTensorRT.cmake
 set(CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/cmake" ${CMAKE_MODULE_PATH})
@@ -97,7 +100,7 @@ catkin_package(
 include_directories(
   "include"
   src/include 
-  include/ncnn
+  #include/ncnn
   ${catkin_INCLUDE_DIRS}
   ${CMAKE_CURRENT_SOURCE_DIR}/src/control/src/include
   ${OpenCV_INCLUDE_DIRS}
@@ -136,18 +139,18 @@ add_executable(signFastest
   src/signFastest.cpp
   src/yolo-fastestv2.cpp
 )
-add_executable(signTRT2
-src/signTRT2.cpp
-src/engine.cpp
-)
-target_link_libraries(signTRT2
-  ${catkin_LIBRARIES}
-  ${OpenCV_LIBS}
-  ${CUDA_LIBRARIES}
-  nvinfer
-  nvparsers
-  nvonnxparser
-)
+#add_executable(signTRT2
+#src/signTRT2.cpp
+#src/engine.cpp
+#)
+#target_link_libraries(signTRT2
+#  ${catkin_LIBRARIES}
+#  ${OpenCV_LIBS}
+#  ${CUDA_LIBRARIES}
+#  nvinfer
+#  nvparsers
+#  nvonnxparser
+#)
 add_executable(bridge
   src/localization_bridge.cpp
 )
