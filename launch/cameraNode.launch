@@ -1,0 +1,24 @@
+<launch>
+
+<rosparam command="load" file="$(find control)/config/sign_params.yaml" />
+<arg name="show" default="false"/>
+<arg name="print" default="false"/>
+<arg name="print_duration" default="false"/>
+<arg name="depth" default="true"/>
+<arg name="real" default="true"/>
+<node pkg="control" name="signFastest" output="screen" type="cameraNode3" required="true">
+    <param name="showFlag" value="$(arg show)"/>
+    <param name="printFlag" value="$(arg print)"/>
+    <param name="printDuration" value="$(arg print_duration)"/>
+    <param name="hasDepthImage" value="$(arg depth)"/>
+    <param name="real" value="$(arg real)"/>
+</node>
+<node pkg="imu_filter_madgwick" type="imu_filter_node" name="ImuFilter">
+        <param name="use_mag" type="bool" value="false" />
+        <param name="_publish_tf" type="bool" value="false" />
+        <param name="_world_frame" type="string" value="enu" />
+        <remap from="/imu/data_raw" to="/camera/imu"/>
+        <remap from="/imu/data" to="/realsense/imu"/>
+</node>
+
+</launch>
