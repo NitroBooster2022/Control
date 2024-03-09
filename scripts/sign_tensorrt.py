@@ -311,9 +311,8 @@ def lightColor_identify(img):
     
 # ----------------------------------------helpers end-------------------------------------------------------
 
-global depth_img
-confidence_thresholds = [0.8, 0.8, 0.8, 0.8, 0.5, 0.8, 0.8, 0.8, 0.8, 0.8, 0.8, 0.8, 0.9]
-distance_thresholds = [2.0, 2.0, 2.0, 2.0, 2.4, 2.0, 2.0, 2.0, 2.0, 2.0, 2.0, 2.0, 1.2]
+confidence_thresholds= [0.8, 0.8, 0.8, 0.8, 0.5, 0.8, 0.8, 0.8, 0.8, 0.8, 0.8, 0.8, 0.9]
+max_distance_thresholds= [1.0, 2.0, 2.0, 2.0, 2.4, 2.0, 2.0, 0.9, 2.0, 2.0, 2.0, 1., 0.9]
 SIGN_H2D_RATIO = 31.57
 LIGHT_W2D_RATIO = 41.87
 CAR_H2D_RATIO = 90.15
@@ -343,8 +342,8 @@ class ObjectDetector():
 
 
     def depth_callback(self, data):
-        global depth_img
-        depth_img = self.bridge.imgmsg_to_cv2(data,desired_encoding='passthrough')
+        
+        self.depth_img = self.bridge.imgmsg_to_cv2(data,desired_encoding='passthrough')
     
     
     def image_callback(self, data):
@@ -372,7 +371,7 @@ class ObjectDetector():
         self.distances=[]
         for i in range(len(self.scores)):
             if self.scores[i] >= confidence_thresholds[self.class_ids[i]]:
-                distance = computeMedianDepth(depth_img,self.boxes[i])/1000
+                distance = computeMedianDepth(self.depth_img,self.boxes[i])/1000
                 if distance_make_sense(distance,self.class_ids[i],self.boxes[i]):
                     self.distances.append(distance)
                 else:
@@ -558,7 +557,8 @@ class InferenceModel:
                 class_ids.append(maxClassIndex)
                 
         # Apply NMS (Non-maximum suppression)
-        result_boxes = (cv2.dnn.NMSBoxes(boxes, scores, 0.25, 0.45, 0.5))
+        # result_boxes = (cv2.dnn.NMSBoxes(boxes, scores, 0.25, 0.45, 0.5))
+        result_boxes = nms(np.array(boxes), np.array(scores), 0.45)
         
         return [boxes[i] for i in result_boxes], [scores[i] for i in result_boxes], [class_ids[i] for i in result_boxes]
 
@@ -762,11 +762,16 @@ def computeMedianDepth(depthimg,box):
     depths = croppedDepth[croppedDepth>100].flatten().tolist()
     
     depths = sorted(depths)
-    index20percent = len(depths)*0.2
-    if (index20percent) <= 0:
-        return depths[0]
+    index20percent = int(len(depths)*0.2)
+    for i in range(index20percent,len(depths)):
+        if depths[i] >= depths[index20percent]:
+            index20percent = i
+        else:
+            break
+    if (index20percent%2) == 0:
+        return depths[index20percent/2]
     else:
-        return depths[int(index20percent/2)]
+        return (depths[((index20percent-1)/2)] + depths[((index20percent+1)/2)])/2
     
 def distance_make_sense(distance,objectID,box):
         if distance>distance_thresholds[objectID]:
@@ -781,7 +786,7 @@ def distance_make_sense(distance,objectID,box):
                 expected_distance = LIGHT_W2D_RATIO/width
             elif objectID != 11:
                 expected_distance = SIGN_H2D_RATIO/height
-            if distance > expected_distance*1.33 or distance < expected_distance*1/1.33:
+            if distance > expected_distance*3 or distance < expected_distance*1/3:
                 return False
             else:
                 return True
