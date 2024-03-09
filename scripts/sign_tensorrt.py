@@ -318,8 +318,9 @@ LIGHT_W2D_RATIO = 41.87
 CAR_H2D_RATIO = 90.15
 
 class ObjectDetector():
-    def __init__(self, show):
+    def __init__(self, show, print):
         self.show = show
+        self.print = print
         # self.model = os.path.dirname(os.path.realpath(__file__)).replace("scripts", "models/np12s2.onnx")
         # self.model = os.path.dirname(os.path.realpath(__file__)).replace("scripts", "models/sissi9s.onnx")
         # self.model = os.path.dirname(os.path.realpath(__file__)).replace("scripts", "models/ningp10.onnx")
@@ -354,7 +355,7 @@ class ObjectDetector():
         t1 = time.time()
         # Convert the image to the OpenCV format
         image = self.bridge.imgmsg_to_cv2(data, "bgr8")
-        self.show = True
+        
          # Update the header information
         header = Header()
         header.seq = data.header.seq
@@ -381,7 +382,11 @@ class ObjectDetector():
         self.scores = [value for index, value in enumerate(self.scores) if index not in todelete]
         self.class_ids = [value for index, value in enumerate(self.class_ids) if index not in todelete]
         self.distances = [value for index, value in enumerate(self.distances) if index not in todelete]
-  
+
+        if (self.print):
+            for item in self.class_ids:
+                print("object detected: {class} at {distance}",format(self.class_names[item],self.distances[item]))
+        
         #traffic light color detection
         color = 0
         if (9 in self.class_ids):
@@ -408,8 +413,13 @@ class ObjectDetector():
         self.light_pub.publish(self.light_color)
 
         if self.show:
+            # depth img
+            self.depth_img = cv2.normalize(self.depth_img, None, 0, 255, cv2.NORM_MINMAX, cv2.CV_8U)
+            dptimg = draw_detections(self.depth_img, self.boxes, self.scores, self.class_ids)
+            # camera img
             img = draw_detections(image, self.boxes, self.scores, self.class_ids)
             # cv2.rectangle(image, (100, 100), (200, 300), (255,0,0), 2)
+            cv2.imshow('depth', dptimg)
             cv2.imshow('sign', img)
             cv2.waitKey(3)
         self.p.objects = self.class_ids
@@ -795,13 +805,18 @@ def distance_make_sense(distance,objectID,box):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument("--show", type=str, default=False, help="show camera frames")
+    parser.add_argument("--print", type=str, default=False, help="print object detected and distance")
     args = parser.parse_args(rospy.myargv()[1:])
     try:
         if args.show=="True":
             s = True
         else:
             s = False
-        node = ObjectDetector(show = s)
+        if args.print=="True":
+            p = True
+        else:
+            p = False
+        node = ObjectDetector(show = s,print = p)
         node.rate.sleep()
         rospy.spin()
     except rospy.ROSInterruptException:
