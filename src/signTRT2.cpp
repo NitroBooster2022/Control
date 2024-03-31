@@ -93,6 +93,9 @@ class signTRT{
             // }
             //input image
             img.upload(cv_ptr->image);
+            m_imgHeight = img.rows;
+            m_imgWidth = img.cols;
+            m_ratio =  1.f / std::min(inputDims[0]/ static_cast<float>(img.cols), inputDims[0] / static_cast<float>(img.rows));
             // std::cout<<cv_ptr->image<<std::endl;
             //detection params
             // inputDims = model.getInputDims();
@@ -108,17 +111,65 @@ class signTRT{
                 input.emplace_back(std::move(resized));
             }
             inputs.emplace_back(std::move(input));
+            preciseStopwatch s2;
             
-
-
             succ = model.runInference(inputs,featureVectors);
-            
+
+            static long long t2 = 0;
+            t2 = s2.elapsedTime<long long, std::chrono::microseconds>();
+            std::cout << "Avg Inference time: " << (t2) / 1000.f << " ms" << std::endl;
+            preciseStopwatch s3;
+
             inputs.clear();
             //convert featureVectors into output boxes
             
             // std::cout << featureVectors[0].size()<< std::endl;
-            outputDims = {model.getOutputDims()[0].d[0],model.getOutputDims()[0].d[1],model.getOutputDims()[0].d[2],model.getOutputDims()[0].d[3]};
-            int x1, y1, x2, y2;
+            // outputDims = {model.getOutputDims()[0].d[0],model.getOutputDims()[0].d[1],model.getOutputDims()[0].d[2],model.getOutputDims()[0].d[3]}; //[1]number of channels [2]number of anchors
+            
+            // rework 03/24
+            
+            Engine::transformOutput(featureVectors, featureVector);
+            
+            outputDims = model.getOutputDims();
+            auto numChannels = outputDims[0].d[1];
+            auto numAnchors = outputDims[0].d[2];
+
+            auto numClasses = class_names.size();
+
+            cv::Mat output = cv::Mat(numChannels, numAnchors, CV_32F, featureVector.data());
+            output = output.t();
+
+            for (int i = 0; i < numAnchors; i++) {
+                auto rowPtr = output.row(i).ptr<float>();
+                auto bboxesPtr = rowPtr;
+                auto scoresPtr = rowPtr + 4;
+                auto maxSPtr = std::max_element(scoresPtr, scoresPtr + numClasses);
+                float score = *maxSPtr;
+                if (score > 0.25) {
+                    float x = *bboxesPtr++;
+                    float y = *bboxesPtr++;
+                    float w = *bboxesPtr++;
+                    float h = *bboxesPtr;
+
+                    float x0 = std::clamp((x - 0.5f * w) * m_ratio, 0.f, m_imgWidth);
+                    float y0 = std::clamp((y - 0.5f * h) * m_ratio, 0.f, m_imgHeight);
+                    float x1 = std::clamp((x + 0.5f * w) * m_ratio, 0.f, m_imgWidth);
+                    float y1 = std::clamp((y + 0.5f * h) * m_ratio, 0.f, m_imgHeight);
+
+                    int label = maxSPtr - scoresPtr;
+                    cv::Rect_<float> bbox;
+                    bbox.x = x0;
+                    bbox.y = y0;
+                    bbox.width = x1 - x0;
+                    bbox.height = y1 - y0;
+
+                    tmp_boxes.push_back(bbox);
+                    classes.push_back(label);
+                    scores.push_back(score);
+                }
+            }
+
+            // int x1, y1, x2, y2;
             // std::cout << outputDims[0] <<std::endl;
             // std::cout << outputDims[1] <<std::endl;
             // std::cout << outputDims[2] <<std::endl;
@@ -131,52 +182,52 @@ class signTRT{
             //     std::cout << "error max x > 640" << std::endl;
                 
             // }
-            for (int i = 0; i < outputDims[0]; ++i) {
-                for (int j = 0; j < outputDims[2]; ++j) { //outputDims[2] = 8400
-                    for (int k = 0; k < outputDims[1]; ++k) { //outputDims[1] = 17 
-                        reshapedOutput[i][j][k] = featureVectors[0][0][(j+k*outputDims[2])];
-                        //rescale box center from img size 640*640 to 640*480
-                        // if (k==1){
-                        //     reshapedOutput[i][j][k] = reshapedOutput[i][j][k]*480/;
-                        // }
-                    }
+            // for (int i = 0; i < outputDims[0]; ++i) {
+            //     for (int j = 0; j < outputDims[2]; ++j) { //outputDims[2] = 8400
+            //         for (int k = 0; k < outputDims[1]; ++k) { //outputDims[1] = 17 
+            //             reshapedOutput[i][j][k] = featureVectors[0][0][(j+k*outputDims[2])];
+            //             //rescale box center from img size 640*640 to 640*480
+            //             // if (k==1){
+            //             //     reshapedOutput[i][j][k] = reshapedOutput[i][j][k]*480/;
+            //             // }
+            //         }
                 
-                }
-            }
+            //     }
+            // }
             featureVectors.clear();
                 
-            // int index = 0;
-            for (int i=0;i<reshapedOutput.size();i++){
-                for (int j=0;j<reshapedOutput[0].size();j++){ //8400
-                    if (reshapedOutput[i][j][1]+reshapedOutput[i][j][3]/2 <=480){ //if the boundary of the box is in the non padded region of the image
-                        maxscore_index = (std::max_element(reshapedOutput[i][j].begin()+4, reshapedOutput[i][j].end()));
-                        maxscore = *maxscore_index;
-                        class_ind = std::distance(reshapedOutput[i][j].begin()+4,maxscore_index);
+            // // int index = 0;
+            // for (int i=0;i<reshapedOutput.size();i++){
+            //     for (int j=0;j<reshapedOutput[0].size();j++){ //8400
+            //         if (reshapedOutput[i][j][1]+reshapedOutput[i][j][3]/2 <=480){ //if the boundary of the box is in the non padded region of the image
+            //             maxscore_index = (std::max_element(reshapedOutput[i][j].begin()+4, reshapedOutput[i][j].end()));
+            //             maxscore = *maxscore_index;
+            //             class_ind = std::distance(reshapedOutput[i][j].begin()+4,maxscore_index);
                         
-                        if (maxscore >= confidence_thresholds[class_ind-1]){
-                            // std::cout << maxscore << std::endl;
-                            // std::cout << class_ind << std::endl;
-                            scores.push_back(maxscore);
-                            classes.push_back(static_cast<int>(class_ind-1));
-                            // scores[index] = maxscore; //seg fault
-                            // classes[index] = static_cast<int>(class_ind);
-                            x1 = static_cast<int>(reshapedOutput[i][j][0]-reshapedOutput[i][j][2]/2);
-                            y1 = static_cast<int>(reshapedOutput[i][j][1]-reshapedOutput[i][j][3]/2);
-                            y2 = static_cast<int>(y1 + reshapedOutput[i][j][3]);
-                            x2 = static_cast<int>(x1 + reshapedOutput[i][j][2]);
-                            // std::cout << "rect" << std::endl;
-                            // std::cout << reshapedOutput[i][j][0] << std::endl;
-                            // std::cout << reshapedOutput[i][j][1] << std::endl;
-                            // std::cout << reshapedOutput[i][j][2] << std::endl;
-                            // std::cout << reshapedOutput[i][j][3] << std::endl;
-                            tmp_boxes.push_back(cv::Rect(x1,y1,x2,y2));
-                            // index ++;
+            //             if (maxscore >= confidence_thresholds[class_ind-1]){
+            //                 // std::cout << maxscore << std::endl;
+            //                 // std::cout << class_ind << std::endl;
+            //                 scores.push_back(maxscore);
+            //                 classes.push_back(static_cast<int>(class_ind-1));
+            //                 // scores[index] = maxscore; //seg fault
+            //                 // classes[index] = static_cast<int>(class_ind);
+            //                 x1 = static_cast<int>(reshapedOutput[i][j][0]-reshapedOutput[i][j][2]/2);
+            //                 y1 = static_cast<int>(reshapedOutput[i][j][1]-reshapedOutput[i][j][3]/2);
+            //                 y2 = static_cast<int>(y1 + reshapedOutput[i][j][3]);
+            //                 x2 = static_cast<int>(x1 + reshapedOutput[i][j][2]);
+            //                 // std::cout << "rect" << std::endl;
+            //                 // std::cout << reshapedOutput[i][j][0] << std::endl;
+            //                 // std::cout << reshapedOutput[i][j][1] << std::endl;
+            //                 // std::cout << reshapedOutput[i][j][2] << std::endl;
+            //                 // std::cout << reshapedOutput[i][j][3] << std::endl;
+            //                 tmp_boxes.push_back(cv::Rect(x1,y1,x2,y2));
+            //                 // index ++;
                     
                     
-                        }
-                    }
-                }
-            }
+            //             }
+            //         }
+            //     }
+            // }
             std::cout<<scores[0]<<std::endl;
             // for (size_t outputNum = 0; outputNum < featureVectors[0].size(); ++outputNum) {
             //     double minVal, maxVal = 0.0;
@@ -205,16 +256,17 @@ class signTRT{
             
             //NMS suppression
             // std::cout << "ck1" <<std::endl;
-            std::vector<int> indices;
+            
+            // cv::dnn::NMSBoxesBatched(tmp_boxes, scores, classes, 0.25, 0.45, indices);
             cv::dnn::NMSBoxes(tmp_boxes, scores, 0.25, 0.45, indices, 0.5);
-            TargetBox tmp_box;
-            for (int i = 0; i < indices.size();i++) {
-            tmp_box.cate = classes[indices[i]];
-            tmp_box.score = scores[indices[i]];
-            tmp_box.x1 = tmp_boxes[indices[i]].x;
-            tmp_box.y1 = tmp_boxes[indices[i]].y;
-            tmp_box.x2 = tmp_boxes[indices[i]].x +  tmp_boxes[indices[i]].width; 
-            tmp_box.y2 = tmp_boxes[indices[i]].y +  tmp_boxes[indices[i]].height;
+            
+            for (auto& i : indices) {
+            tmp_box.cate = classes[i];
+            tmp_box.score = scores[i];
+            tmp_box.x1 = tmp_boxes[i].x;
+            tmp_box.y1 = tmp_boxes[i].y;
+            tmp_box.x2 = tmp_boxes[i].x +  tmp_boxes[i].width; 
+            tmp_box.y2 = tmp_boxes[i].y +  tmp_boxes[i].height;
             // std::cout << tmp_box.x1 << std::endl;
             // std::cout << tmp_box.y1 << std::endl;
             // std::cout << tmp_box.x2 << std::endl;
@@ -341,10 +393,16 @@ class signTRT{
         std::vector<cv::Rect> tmp_boxes;
         std::vector<float> scores;
         std::vector<int> classes;
+        TargetBox tmp_box;
+
+        std::vector<int> indices;
 
         size_t class_ind;
         float maxscore;
         std::vector<float>::iterator maxscore_index;
+        float m_imgHeight;
+        float m_imgWidth;
+        float m_ratio;
     
     //engine inference related
         
@@ -354,13 +412,15 @@ class signTRT{
         cv::cuda::GpuMat img;
         // std::vector<nvinfer1::Dims3>& inputDims;
         std::vector<int> inputDims;
-        std::vector<int> outputDims;
+        std::vector<nvinfer1::Dims> outputDims;
         //auto& inputDims;
         bool succ;
         size_t batchSize;
         cv::cuda::GpuMat resized;
         std::vector<cv::cuda::GpuMat> input;
-        
+        std::vector<float> featureVector;
+
+
         
         
 
