@@ -82,7 +82,8 @@ class signTRT{
             }
         }
         void imageCallback(const sensor_msgs::ImageConstPtr& msg){
-            // std::cout<<"img callback"<< std::endl;
+            std::cout<<"img callback"<< std::endl;
+            std::cout << "OpenCV version : " << CV_VERSION << std::endl;
             if(printDuration) start = std::chrono::high_resolution_clock::now();
             // try{
             cv_ptr = cv_bridge::toCvCopy(msg, sensor_msgs::image_encodings::BGR8);
@@ -96,7 +97,7 @@ class signTRT{
             m_imgHeight = img.rows;
             m_imgWidth = img.cols;
             m_ratio =  1.f / std::min(inputDims[0]/ static_cast<float>(img.cols), inputDims[0] / static_cast<float>(img.rows));
-            // std::cout<<cv_ptr->image<<std::endl;
+            
             //detection params
             // inputDims = model.getInputDims();
             batchSize = options.optBatchSize;
@@ -127,9 +128,9 @@ class signTRT{
             // outputDims = {model.getOutputDims()[0].d[0],model.getOutputDims()[0].d[1],model.getOutputDims()[0].d[2],model.getOutputDims()[0].d[3]}; //[1]number of channels [2]number of anchors
             
             // rework 03/24
-            
+            std::cout<<"ck1"<<std::endl;
             Engine::transformOutput(featureVectors, featureVector);
-            
+            std::cout<<"ck2"<<std::endl;
             outputDims = model.getOutputDims();
             auto numChannels = outputDims[0].d[1];
             auto numAnchors = outputDims[0].d[2];
@@ -194,7 +195,7 @@ class signTRT{
                 
             //     }
             // }
-            featureVectors.clear();
+            // featureVectors.clear();
                 
             // // int index = 0;
             // for (int i=0;i<reshapedOutput.size();i++){
@@ -228,7 +229,7 @@ class signTRT{
             //         }
             //     }
             // }
-            std::cout<<scores[0]<<std::endl;
+            std::cout<<"ck3"<<std::endl;
             // for (size_t outputNum = 0; outputNum < featureVectors[0].size(); ++outputNum) {
             //     double minVal, maxVal = 0.0;
             //     cv::Point minLoc; cv::Point maxLoc;
@@ -255,7 +256,7 @@ class signTRT{
             
             
             //NMS suppression
-            // std::cout << "ck1" <<std::endl;
+            std::cout << "ck4" <<std::endl;
             
             // cv::dnn::NMSBoxesBatched(tmp_boxes, scores, classes, 0.25, 0.45, indices);
             cv::dnn::NMSBoxes(tmp_boxes, scores, 0.25, 0.45, indices, 0.5);
@@ -274,6 +275,8 @@ class signTRT{
             boxes.push_back(tmp_box);
             }
 
+            std::cout << boxes.size() <<std::endl;
+            
             int hsy = 0;
             //what to publish in topic
             for (const auto& box:boxes) {
@@ -282,7 +285,7 @@ class signTRT{
                 if (confidence >= confidence_thresholds[class_id]){
                     // std::cout << "ck3" <<std::endl;
                     double distance = computeMedianDepth(cv_ptr_depth->image,box)/1000;
-                    // std::cout << "ck4" <<std::endl;
+                    std::cout << distance <<std::endl;
                     if (distance <= distance_thresholds[class_id]){
                         // std::cout << "ck5" <<std::endl;
                         sign_msg.data.push_back(box.x1);
@@ -296,9 +299,9 @@ class signTRT{
                     }
                 }
             }
-            scores.clear();
-            classes.clear();
-            tmp_boxes.clear();
+            // scores.clear();
+            // classes.clear();
+            // tmp_boxes.clear();
 
             if(hsy){
                 std_msgs::MultiArrayDimension dim;
