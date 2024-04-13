@@ -139,6 +139,7 @@ add_executable(signFastest
 add_executable(signTRT2
 src/signTRT2.cpp
 src/engine.cpp
+src/yolov8.cpp
 )
 target_link_libraries(signTRT2
   ${catkin_LIBRARIES}
@@ -148,8 +149,22 @@ target_link_libraries(signTRT2
   nvparsers
   nvonnxparser
 )
+
+
 add_executable(bridge
   src/localization_bridge.cpp
+)
+add_executable(detect_object_image 
+src/object_detection_image.cpp
+src/yolov8.cpp
+src/engine.cpp)
+target_link_libraries(detect_object_image
+  ${catkin_LIBRARIES}
+  ${OpenCV_LIBS}
+  ${CUDA_LIBRARIES}
+  nvinfer
+  nvparsers
+  nvonnxparser
 )
 # add_executable(cameraNode
 #   src/cameraNode.cpp
