@@ -36,6 +36,7 @@ class signFastest {
             nh.getParam("/signFastest/printFlag", print);
             nh.getParam("/signFastest/printFlag", printDuration); //printDuration
             nh.getParam("/signFastest/hasDepthImage", hasDepthImage);
+            nh.getParam("/signFastest/real", real);
             std::string model;
             nh.getParam("model", model);
             std::cout << "showFlag: " << show << std::endl;
@@ -72,12 +73,17 @@ class signFastest {
             pub = nh.advertise<std_msgs::Float32MultiArray>("sign", 10);
             std::cout <<"pub created" << std::endl;
             if(hasDepthImage) {
-                depth_sub = it.subscribe("/camera/depth/image_raw", 3, &signFastest::depthCallback, this);
-                ros::topic::waitForMessage<sensor_msgs::Image>("/camera/depth/image_raw", nh);
+                std::string topic;
+                if (real) {
+                    topic = "/camera/depth/image_rect_raw";
+                } else {    
+                    topic = "/camera/depth/image_raw";
+                }
+                depth_sub = it.subscribe(topic, 3, &signFastest::depthCallback, this);
+                ros::topic::waitForMessage<sensor_msgs::Image>(topic, nh);
             }
             sub = it.subscribe("/camera/color/image_raw", 3, &signFastest::imageCallback, this);
             // sub = it.subscribe("/camera/image_raw", 3, &signFastest::imageCallback, this);
-            std::cout <<"sub created" << std::endl;
         }
         enum OBJECT {
             ONEWAY,
@@ -106,16 +112,21 @@ class signFastest {
             } else { // sign
                 expected_dist = SIGN_H2D_RATIO / height;
             }
-            if (distance > expected_dist * 1.33 || distance < expected_dist * 1/1.33) return false;
+            if (distance > expected_dist * 3 || distance < expected_dist * 1/3) return false;
             return true;
         }
         void depthCallback(const sensor_msgs::ImageConstPtr &msg) {
-            try {
-                cv_ptr_depth = cv_bridge::toCvCopy(msg, sensor_msgs::image_encodings::TYPE_32FC1);
-            } catch (cv_bridge::Exception &e) {
-                ROS_ERROR("cv_bridge exception: %s", e.what());
+            cv_ptr_depth = cv_bridge::toCvCopy(msg, sensor_msgs::image_encodings::TYPE_32FC1);
+            if(cv_ptr_depth == nullptr || cv_ptr_depth->image.empty()) {
+                ROS_ERROR("cv_bridge failed to convert image");
                 return;
             }
+            // try {
+            //     cv_ptr_depth = cv_bridge::toCvCopy(msg, sensor_msgs::image_encodings::TYPE_32FC1);
+            // } catch (cv_bridge::Exception &e) {
+            //     ROS_ERROR("cv_bridge exception: %s", e.what());
+            //     return;
+            // }
         }
         void imageCallback(const sensor_msgs::ImageConstPtr &msg) {
             if(printDuration) start = high_resolution_clock::now();
@@ -232,8 +243,9 @@ class signFastest {
         bool print;
         bool printDuration;
         bool hasDepthImage;
+        bool real;
         cv_bridge::CvImagePtr cv_ptr;
-        cv_bridge::CvImagePtr cv_ptr_depth;
+        cv_bridge::CvImagePtr cv_ptr_depth = nullptr;
         cv::Mat normalizedDepthImage;
         cv::Mat croppedDepth;
 

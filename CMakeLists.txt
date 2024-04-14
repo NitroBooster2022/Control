@@ -136,6 +136,10 @@ add_executable(signFastest
   src/signFastest.cpp
   src/yolo-fastestv2.cpp
 )
+add_executable(videoDetector
+  src/videoDetector.cpp
+  src/yolo-fastestv2.cpp
+)
 add_executable(signTRT2
 src/signTRT2.cpp
 src/engine.cpp
@@ -194,6 +198,10 @@ target_link_libraries(lane
 #   ${catkin_LIBRARIES}
 # )
 target_link_libraries(signFastest
+  ${catkin_LIBRARIES}
+  ncnn ${OpenCV_LIBS}
+)
+target_link_libraries(videoDetector
   ${catkin_LIBRARIES}
   ncnn ${OpenCV_LIBS}
 )

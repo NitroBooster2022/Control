@@ -9,8 +9,9 @@ using namespace std::chrono;
 
 class LaneDetector {
 public:
-    LaneDetector(bool showflag, bool printflag) : it(nh), showflag(showflag), printflag(printflag){
-        image_sub = it.subscribe("/camera/color/image_raw", 1, &LaneDetector::imageCallback, this);
+    LaneDetector(bool showflag, bool printflag) : it(nh), showflag(showflag), printflag(printflag), previous_center(320)
+    {
+        image_sub = it.subscribe("camera/color/image_raw", 1, &LaneDetector::imageCallback, this);
         // image_pub = it.advertise("/automobile/image_modified", 1);
         lane_pub = nh.advertise<utils::Lane>("/lane", 1);
         image = cv::Mat::zeros(480, 640, CV_8UC1);
@@ -129,6 +130,17 @@ public:
             center = (centers[0] + centers.back()) / 2;
         }
 
+        // if(std::abs(center - previous_center) > 250) {
+        //     center = previous_center;
+        // }
+        // if (std::abs(center - 320) < 1) {
+        //     double temp = center;
+        //     center = previous_center;
+        //     previous_center = temp;
+        // } else {
+        //     previous_center = center;
+        // }
+
         if (show) {
             // Create the new cv::Mat object and initialize it with zeros
             cv::Mat padded_thresh = cv::Mat::zeros(480, 640, CV_8UC1);
@@ -152,6 +164,7 @@ public:
             std::cout << "center: " << center << std::endl;
             std::cout << "thresh: " << threshold_value << std::endl;
         }
+        previous_center = center;
         return center;
     }
 
@@ -162,6 +175,7 @@ private:
     // image_transport::Publisher image_pub;
     ros::Publisher lane_pub;
     double num_iterations = 1;
+    double previous_center;
     double total;
     cv::Mat maskh, masks, image, maskd;
     bool stopline, dotted;
@@ -186,6 +200,7 @@ int main(int argc, char** argv) {
     bool printFlag = false;
     
     // Loop through command line arguments
+    // -s to display image
     while ((opt = getopt(argc, argv, "hs:p:")) != -1) {
         switch (opt) {
             case 's':
@@ -207,6 +222,8 @@ int main(int argc, char** argv) {
                 exit(1);
         }
     }
+    std::string show = showFlag ? "True" : "False";
+    std::cout << "show is " << show << std::endl;
     ros::init(argc, argv, "CAMnod");
     LaneDetector laneDetector(showFlag, printFlag);
     return 0;
