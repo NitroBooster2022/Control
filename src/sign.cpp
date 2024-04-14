@@ -8,7 +8,7 @@
 
 void load_net(cv::dnn::Net &net, bool is_cuda)
 {
-    auto result = cv::dnn::readNet("/home/simonli/Documents/Simulator/src/control/models/alex12s2.onnx");
+    auto result = cv::dnn::readNet("/home/simonli/Simulator/src/Control/models/alex12s2.onnx");
     if (is_cuda)
     {
         std::cout << "Attempty to use CUDA\n";
@@ -131,7 +131,7 @@ public:
     : it_(nh_)
   {
     // Subscrive to input video feed and publish output video feed
-    image_sub_ = it_.subscribe("/automobile/image_raw/compressed", 1,
+    image_sub_ = it_.subscribe("/automobile/color/image_raw/", 1,
       &ImageConverter::imageCb, this);
     image_pub_ = it_.advertise("/image_converter/output_video", 1);
 
@@ -145,6 +145,7 @@ public:
 
   void imageCb(const sensor_msgs::ImageConstPtr& msg)
   {
+    ROS_INFO("imageCb");
     cv_bridge::CvImagePtr cv_ptr;
     try
     {

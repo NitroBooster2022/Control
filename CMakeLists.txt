@@ -24,6 +24,13 @@ find_package(catkin REQUIRED COMPONENTS
 ## System dependencies are found with CMake's conventions
 # find_package(Boost REQUIRED COMPONENTS system)
 find_package(OpenCV REQUIRED)
+find_package(CUDA REQUIRED)
+if(CUDA_FOUND)
+  message("-- CUDA found ${CUDA_VERSION_STRING}, ${CUDA_INCLUDE_DIRS}")
+else()
+  message("-- CUDA not found")
+endif()
+find_package(realsense2 REQUIRED)
 find_package (Eigen3 REQUIRED )
 # Set ncnn_DIR using the relative path
 set(ncnn_DIR ${CMAKE_CURRENT_SOURCE_DIR}/src/lib/cmake/ncnn)
@@ -78,7 +85,7 @@ generate_messages(
 ## CATKIN_DEPENDS: catkin_packages dependent projects also need
 ## DEPENDS: system dependencies of this project that dependent projects also need
 catkin_package(
-  #  INCLUDE_DIRS include
+  INCLUDE_DIRS include
   #  LIBRARIES control
   CATKIN_DEPENDS
   geometry_msgs
@@ -103,6 +110,7 @@ catkin_package(
 ## Specify additional locations of header files
 ## Your package locations should be listed before other locations
 include_directories(
+  include
   "include"
   src/include 
   include/ncnn
@@ -135,6 +143,24 @@ add_executable(videoDetector
 )
 add_executable(bridge
   src/localization_bridge.cpp
+)
+add_executable(cameraNode3
+  src/cameraNode3.cpp
+  src/yolo-fastestv2.cpp
+)
+target_link_libraries(cameraNode3
+  ${catkin_LIBRARIES}
+  ncnn ${OpenCV_LIBS}
+  ${realsense2_LIBRARY}
+)
+add_executable(cameraNodeRos
+  src/cameraNodeRos.cpp
+  src/yolo-fastestv2.cpp
+)
+target_link_libraries(cameraNodeRos
+  ${catkin_LIBRARIES}
+  ncnn ${OpenCV_LIBS}
+  ${realsense2_LIBRARY}
 )
 # add_executable(cameraNode
 #   src/cameraNode.cpp

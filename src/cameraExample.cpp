@@ -6,7 +6,7 @@
 #include <chrono>
 #include "utils/Lane.h"
 #include "utils/Sign.h"
-#include "include/yolo-fastestv2.h"
+#include "yolo-fastestv2.h"
 using namespace std::chrono;
 
 class SignDetector {
