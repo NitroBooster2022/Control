@@ -21,7 +21,7 @@ class CameraHandler():
         #create path
         os.makedirs(self.save_path, exist_ok=True)
         self.i = 0
-        self.image_sub = rospy.Subscriber("/automobile/image_raw", Image, self.callback)
+        self.image_sub = rospy.Subscriber("/camera/color/image_raw", Image, self.callback)
         rospy.spin()
         self.r.sleep()
 

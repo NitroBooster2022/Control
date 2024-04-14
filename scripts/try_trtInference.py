@@ -409,9 +409,13 @@ if __name__ == '__main__':
     # except rospy.ROSInterruptException:
     #     cv2.destroyAllWindows()
     try:
-        image = cv2.imread("/home/scandy/Documents/BFMC_pkgs/Control/street.jpg")
-        detect = ObjectDetector(path='/home/scandy/Documents/BFMC_pkgs/Control/models/best.engine', show=False)
-        detect.image_callback(image)
+        folderpath = "/media/slsecret/E624108524105B3F/Users/simon/Downloads/linxy/YOLOv8/rf2/"
+        detect = ObjectDetector(path='/media/slsecret/E624108524105B3F/Users/simon/Downloads/linxy/YOLOv8/model_city/best3_cococityyololg40/train7/weights/best_onnx.engine', show=True)
+
+        for imagepath in os.listdir(folderpath):
+            image = cv2.imread(folderpath+imagepath)
+            detect.image_callback(image)
+        
     except Exception as e:
         print(e)
         print(traceback.format_exc())
