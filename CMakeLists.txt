@@ -1,9 +1,9 @@
 cmake_minimum_required(VERSION 3.0.2)
+# cmake_minimum_required(VERSION 3.18)
 project(control)
 
-## Find catkin macros and libraries
-## if COMPONENTS list like find_package(catkin REQUIRED COMPONENTS xyz)
-## is used, also find other catkin packages
+set(CMAKE_CXX_STANDARD 17)
+
 find_package(catkin REQUIRED COMPONENTS
   geometry_msgs
   roscpp
@@ -17,16 +17,20 @@ find_package(catkin REQUIRED COMPONENTS
   cv_bridge
   image_transport
   utils
-  # roslib
-  # image_geometry
 )
 
-## System dependencies are found with CMake's conventions
-# find_package(Boost REQUIRED COMPONENTS system)
-find_package(OpenCV REQUIRED)
+find_package(CUDA REQUIRED)
+if(CUDA_FOUND)
+  message("-- CUDA found ${CUDA_VERSION_STRING}, ${CUDA_INCLUDE_DIRS}")
+else()
+  message("-- CUDA not found")
+endif()
+
 find_package (Eigen3 REQUIRED )
-# Set ncnn_DIR using the relative path
 set(ncnn_DIR ${CMAKE_CURRENT_SOURCE_DIR}/src/lib/cmake/ncnn)
+
+# For finding FindTensorRT.cmake
+set(CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/cmake" ${CMAKE_MODULE_PATH})
 
 find_package(ncnn REQUIRED)
 if (${ncnn_FOUND})
@@ -39,19 +43,20 @@ if (${ncnn_FOUND})
   include_directories(${ncnn_INCLUDE})
 endif()
 
-find_package(OpenCV REQUIRED)
+find_package(OpenCV 4.5 REQUIRED)
 if (OpenCV_FOUND)
     message("OpenCV found ${OpenCV_VERSION}, ${OpenCV_INCLUDE_DIRS}")
 else()
     message("OpenCV not found")
 endif()
 
-## Generate messages in the 'msg' folder
-# add_message_files(
-#   FILES
-#   Lane.msg
-#   Sign.msg
-# )
+# Generate messages in the 'msg' folder
+add_message_files(
+  FILES
+  Lane.msg
+  Sign.msg
+  Light.msg
+)
 
 ## Generate services in the 'srv' folder
 add_service_files(
@@ -68,15 +73,6 @@ generate_messages(
   std_msgs#   tf2_geometry_msgs
 )
 
-###################################
-## catkin specific configuration ##
-###################################
-## The catkin_package macro generates cmake config files for your package
-## Declare things to be passed to dependent projects
-## INCLUDE_DIRS: uncomment this if your package contains header files
-## LIBRARIES: libraries you create in this project that dependent projects also need
-## CATKIN_DEPENDS: catkin_packages dependent projects also need
-## DEPENDS: system dependencies of this project that dependent projects also need
 catkin_package(
   #  INCLUDE_DIRS include
   #  LIBRARIES control
@@ -93,11 +89,7 @@ catkin_package(
   image_transport
   cv_bridge
   sensor_msgs
-  opencv2
-  #  roslib
-  #  image_geometry
-  #  message_generation
-  #  DEPENDS system_lib
+  # opencv2
 )
 
 ## Specify additional locations of header files
@@ -112,19 +104,34 @@ include_directories(
   # ${CMAKE_CURRENT_SOURCE_DIR}/src/control/src/include
 )
 
-add_executable(camera
-  src/camera.cpp
-)
-add_executable(cameraExample
-  src/cameraExample.cpp
-  src/yolo-fastestv2.cpp
-)
+include_directories(~/TensorRT-8.6.1.6/include)
+link_directories(~/TensorRT-8.6.1.6/lib)
+
+include_directories(/usr/local/cuda/targets/x86_64-linux/include)
+link_directories(/usr/local/cuda/targets/x86_64-linux/lib)
+
+# include_directories(/usr/local/cuda-11.8/include)
+# link_directories(/usr/local/cuda-11.8/lib)
+
+# include_directories(/usr/local/cuda-11.8/include)
+# link_directories(/usr/local/cuda-11.8/lib)
+
+include_directories(/usr/local/include/opencv2)
+link_directories(/usr/local/lib)
+
+# add_executable(camera
+#   src/camera.cpp
+# )
+# add_executable(cameraExample
+#   src/cameraExample.cpp
+#   src/yolo-fastestv2.cpp
+# )
 add_executable(lane
   src/lane.cpp
 )
-add_executable(sign
-  src/sign.cpp
-)
+# add_executable(sign
+#   src/sign.cpp
+# )
 add_executable(signFastest
   src/signFastest.cpp
   src/yolo-fastestv2.cpp
@@ -133,22 +140,29 @@ add_executable(videoDetector
   src/videoDetector.cpp
   src/yolo-fastestv2.cpp
 )
+add_executable(signTRT2
+src/signTRT2.cpp
+src/engine.cpp
+src/yolov8.cpp
+)
+
 add_executable(bridge
   src/localization_bridge.cpp
 )
-# add_executable(cameraNode
-#   src/cameraNode.cpp
-#   src/include/raspicam/raspicam_cv.cpp
-#   src/yolo-fastestv2.cpp
-# )
-# add_executable(cameraNode2
-#   src/cameraNode2.cpp
-#   # src/include/raspicam/raspicam_cv.cpp
-#   src/yolo-fastestv2.cpp
-# )
-# add_executable(localization
-#   src/localization.cpp
-# )
+
+add_executable(cameraNode
+  src/cameraNode.cpp
+  src/include/raspicam/raspicam_cv.cpp
+  src/yolo-fastestv2.cpp
+)
+add_executable(cameraNode2
+  src/cameraNode2.cpp
+  # src/include/raspicam/raspicam_cv.cpp
+  src/yolo-fastestv2.cpp
+)
+add_executable(localization
+  src/localization.cpp
+)
 
 target_link_libraries(camera
   ${catkin_LIBRARIES}
@@ -167,6 +181,14 @@ target_link_libraries(signFastest
   ${catkin_LIBRARIES}
   ncnn ${OpenCV_LIBS}
 )
+target_link_libraries(signTRT2
+  ${catkin_LIBRARIES}
+  ${OpenCV_LIBS}
+  ${CUDA_LIBRARIES}
+  nvinfer
+  nvparsers
+  nvonnxparser
+)
 target_link_libraries(videoDetector
   ${catkin_LIBRARIES}
   ncnn ${OpenCV_LIBS}
@@ -174,29 +196,32 @@ target_link_libraries(videoDetector
 target_link_libraries(bridge
   ${catkin_LIBRARIES}
 )
-# target_link_libraries(cameraNode
-#   ${catkin_LIBRARIES}
-#   ncnn ${OpenCV_LIBS}
-#   raspicam
-# )
-# target_link_libraries(cameraNode2
-#   ${catkin_LIBRARIES}
-#   ncnn ${OpenCV_LIBS}
-#   # raspicam
-# )
-# target_link_libraries(localization
-#   ${catkin_LIBRARIES}
-# )
-# find_package(OpenMP)
-# if (OpenMP_CXX_FOUND)
-#     target_link_libraries(signFastest PUBLIC OpenMP::OpenMP_CXX)
-# endif()
+
+target_link_libraries(cameraNode
+  ${catkin_LIBRARIES}
+  ncnn ${OpenCV_LIBS}
+  raspicam
+)
+target_link_libraries(cameraNode2
+  ${catkin_LIBRARIES}
+  ncnn ${OpenCV_LIBS}
+  # raspicam
+)
+target_link_libraries(localization
+  ${catkin_LIBRARIES}
+)
+find_package(OpenMP)
+if (OpenMP_CXX_FOUND)
+    target_link_libraries(signFastest PUBLIC OpenMP::OpenMP_CXX)
+endif()
 
 ## Mark executable scripts (Python etc.) for installation
 ## in contrast to setup.py, you can choose the destination
 catkin_install_python(PROGRAMS
   scripts/lane.py
   scripts/sign_onnx.py
+  scripts/lib/color_ident.py
+  scripts/sign_tensorrt.py
   # scripts/realSensePub.py
   # scripts/trackObjectDistance.py
   scripts/control3.py
