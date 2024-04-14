@@ -145,6 +145,42 @@ src/signTRT2.cpp
 src/engine.cpp
 src/yolov8.cpp
 )
+
+add_executable(bridge
+  src/localization_bridge.cpp
+)
+
+add_executable(cameraNode
+  src/cameraNode.cpp
+  src/include/raspicam/raspicam_cv.cpp
+  src/yolo-fastestv2.cpp
+)
+add_executable(cameraNode2
+  src/cameraNode2.cpp
+  # src/include/raspicam/raspicam_cv.cpp
+  src/yolo-fastestv2.cpp
+)
+add_executable(localization
+  src/localization.cpp
+)
+
+target_link_libraries(camera
+  ${catkin_LIBRARIES}
+)
+target_link_libraries(cameraExample
+  ${catkin_LIBRARIES}
+  ncnn ${OpenCV_LIBS}
+)
+target_link_libraries(lane
+  ${catkin_LIBRARIES}
+)
+target_link_libraries(sign
+  ${catkin_LIBRARIES}
+)
+target_link_libraries(signFastest
+  ${catkin_LIBRARIES}
+  ncnn ${OpenCV_LIBS}
+)
 target_link_libraries(signTRT2
   ${catkin_LIBRARIES}
   ${OpenCV_LIBS}
@@ -153,54 +189,6 @@ target_link_libraries(signTRT2
   nvparsers
   nvonnxparser
 )
-
-
-add_executable(bridge
-  src/localization_bridge.cpp
-)
-add_executable(detect_object_image 
-src/object_detection_image.cpp
-src/yolov8.cpp
-src/engine.cpp)
-target_link_libraries(detect_object_image
-  ${catkin_LIBRARIES}
-  ${OpenCV_LIBS}
-  ${CUDA_LIBRARIES}
-  nvinfer
-  nvparsers
-  nvonnxparser
-)
-# add_executable(cameraNode
-#   src/cameraNode.cpp
-#   src/include/raspicam/raspicam_cv.cpp
-#   src/yolo-fastestv2.cpp
-# )
-# add_executable(cameraNode2
-#   src/cameraNode2.cpp
-#   # src/include/raspicam/raspicam_cv.cpp
-#   src/yolo-fastestv2.cpp
-# )
-# add_executable(localization
-#   src/localization.cpp
-# )
-
-# target_link_libraries(camera
-#   ${catkin_LIBRARIES}
-# )
-# target_link_libraries(cameraExample
-#   ${catkin_LIBRARIES}
-#   ncnn ${OpenCV_LIBS}
-# )
-target_link_libraries(lane
-  ${catkin_LIBRARIES}
-)
-# target_link_libraries(sign
-#   ${catkin_LIBRARIES}
-# )
-target_link_libraries(signFastest
-  ${catkin_LIBRARIES}
-  ncnn ${OpenCV_LIBS}
-)
 target_link_libraries(videoDetector
   ${catkin_LIBRARIES}
   ncnn ${OpenCV_LIBS}
@@ -208,26 +196,24 @@ target_link_libraries(videoDetector
 target_link_libraries(bridge
   ${catkin_LIBRARIES}
 )
-# target_link_libraries(signTRT2
-#   ${catkin_LIBRARIES}
-# )
-# target_link_libraries(cameraNode
-#   ${catkin_LIBRARIES}
-#   ncnn ${OpenCV_LIBS}
-#   raspicam
-# )
-# target_link_libraries(cameraNode2
-#   ${catkin_LIBRARIES}
-#   ncnn ${OpenCV_LIBS}
-#   # raspicam
-# )
-# target_link_libraries(localization
-#   ${catkin_LIBRARIES}
-# )
-# find_package(OpenMP)
-# if (OpenMP_CXX_FOUND)
-#     target_link_libraries(signFastest PUBLIC OpenMP::OpenMP_CXX)
-# endif()
+
+target_link_libraries(cameraNode
+  ${catkin_LIBRARIES}
+  ncnn ${OpenCV_LIBS}
+  raspicam
+)
+target_link_libraries(cameraNode2
+  ${catkin_LIBRARIES}
+  ncnn ${OpenCV_LIBS}
+  # raspicam
+)
+target_link_libraries(localization
+  ${catkin_LIBRARIES}
+)
+find_package(OpenMP)
+if (OpenMP_CXX_FOUND)
+    target_link_libraries(signFastest PUBLIC OpenMP::OpenMP_CXX)
+endif()
 
 ## Mark executable scripts (Python etc.) for installation
 ## in contrast to setup.py, you can choose the destination
