@@ -14,13 +14,26 @@
 #include <vector>
 #include <std_msgs/Float32MultiArray.h>
 #include "yolov8.h"
-
+#include <iostream>
+std::string getSourceDirectory() {
+    std::string file_path(__FILE__);  // __FILE__ is the full path of the source file
+    size_t last_dir_sep = file_path.rfind('/');  // For Unix/Linux path
+    if (last_dir_sep == std::string::npos) {
+        last_dir_sep = file_path.rfind('\\');  // For Windows path
+    }
+    if (last_dir_sep != std::string::npos) {
+        return file_path.substr(0, last_dir_sep);  // Extract directory path
+    }
+    return "";  // Return empty string if path not found
+}
 using namespace nvinfer1;
 // Options options;
 // Engine model(options);
 //get the model path
-std::string model_name = "citycocov2lgtclab_20";
-std::string modelPath = "/home/slsecret/Documents/Simulator/src/Control/src/model/" + model_name + ".onnx";
+std::string model_name = "citycocov2lgtclab_20"; 
+// std::string model_name = "v2originalTRT"; 
+std::string current_path = getSourceDirectory();
+std::string modelPath = current_path + "/model/" + model_name + ".onnx";
 YoloV8Config config;
 YoloV8 yolov8 = YoloV8(modelPath, config);
 
@@ -39,9 +52,9 @@ class signTRT{
             nh.getParam("class_names",class_names);
             nh.getParam("confidence_thresholds", confidence_thresholds);
             nh.getParam("max_distance_thresholds", distance_thresholds);
-            nh.getParam("/signFastest/showFlag",show);
-            nh.getParam("/signFastest/printFlag",print);
-            nh.getParam("signFastest/printDuration",printDuration);
+            nh.getParam("/showFlag",show);
+            nh.getParam("/printFlag",print);
+            nh.getParam("/printDuration",printDuration);
             
             std::cout << "showFlag: " << show << std::endl;
             std::cout << "printFlag: " << print << std::endl;
@@ -56,7 +69,9 @@ class signTRT{
             std::cout << "pub created" << std::endl;
             
             depth_sub = it.subscribe("/camera/depth/image_raw",3,&signTRT::depthCallback,this);
+            std::cout << "waiting for depth image" << std::endl;
             ros::topic::waitForMessage<sensor_msgs::Image>("/camera/depth/image_raw",nh);
+            std::cout << "got depth image" << std::endl;
             sub = it.subscribe("/camera/color/image_raw",3,&signTRT::imageCallback,this);
 
         }
@@ -194,10 +209,6 @@ class signTRT{
         std::vector<cv::cuda::GpuMat> input;
         std::vector<float> featureVector;
 
-
-        
-        
-
         double computeMedianDepth(const cv::Mat& depthImage, const struct Object& box) {
             
             // Ensure the bounding box coordinates are valid
@@ -241,6 +252,7 @@ class signTRT{
 
 int main(int argc, char** argv) {
   int opt;
+  ROS_INFO("model path: %s", modelPath.c_str());
 
   // Initialize ROS node and publisher
     ros::init(argc, argv, "object_detector");
