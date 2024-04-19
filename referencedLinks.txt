@@ -1,0 +1,3 @@
+https://github.com/NVIDIA/TensorRT/blob/release/8.6/samples/python/yolov3_onnx/data_processing.py
+https://github.com/ultralytics/ultralytics/issues/751
+https://github.com/ultralytics/ultralytics/blob/main/examples/YOLOv8-OpenCV-ONNX-Python/main.py
