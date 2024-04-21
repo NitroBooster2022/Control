@@ -1,6 +1,6 @@
 #include <math.h>
 #include <algorithm>
-#include "include/yolo-fastestv2.h"
+#include "yolo-fastestv2.h"
 
 //模型的参数配置
 yoloFastestv2::yoloFastestv2()

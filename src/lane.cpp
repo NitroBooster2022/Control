@@ -224,7 +224,8 @@ int main(int argc, char** argv) {
     }
     std::string show = showFlag ? "True" : "False";
     std::cout << "show is " << show << std::endl;
-    ros::init(argc, argv, "CAMnod");
+    // anonymous node
+    ros::init(argc, argv, "lane");
     LaneDetector laneDetector(showFlag, printFlag);
     return 0;
 }

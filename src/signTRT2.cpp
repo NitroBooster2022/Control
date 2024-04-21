@@ -1,5 +1,5 @@
 #include "ros/ros.h"
-#include "include/yolo-fastestv2.h"
+#include "yolo-fastestv2.h"
 #include <opencv2/opencv.hpp>
 #include <opencv2/opencv.hpp>
 #include <opencv2/core.hpp>
@@ -7,9 +7,8 @@
 #include <opencv2/cudaimgproc.hpp>
 #include "image_transport/image_transport.h"
 #include "cv_bridge/cv_bridge.h"
-#include "cv_bridge/cv_bridge.h"
 #include "std_msgs/Header.h"
-#include "include/engine.h"
+#include "engine.h"
 #include <chrono>
 #include <vector>
 #include <std_msgs/Float32MultiArray.h>
@@ -95,7 +94,7 @@ class signTRT{
            
             std_msgs::Float32MultiArray sign_msg;
             sign_msg.layout.data_offset = 0;
-            for (const struct Object& box:detected_objects) {
+            for (const struct Object& box : detected_objects) {
                 int class_id = box.label;
                 float confidence = box.probability;
                 if (confidence >= confidence_thresholds[class_id]){
