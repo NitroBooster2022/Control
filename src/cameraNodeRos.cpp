@@ -28,21 +28,12 @@ class CameraNode {
             // depthImage = cv::Mat::zeros(480, 640, CV_16UC1);
             // colorImage = cv::Mat::zeros(480, 640, CV_8UC3);
             std::string nodeName = ros::this_node::getName();
-            std::cout.precision(4);
-            bool real;
-            nh.getParam(nodeName+"/showFlag", show);
-            nh.getParam(nodeName+"/printFlag", print);
-            nh.getParam(nodeName+"/printFlag", printDuration); //printDuration
-            nh.getParam(nodeName+"/hasDepthImage", hasDepthImage);
-            nh.getParam(nodeName+"/real", real);
-            std::cout << "showFlag: " << show << std::endl;
-            std::cout << "printFlag: " << print << std::endl;
-            std::cout << "printDuration: " << printDuration << std::endl;
-            printf("hasDepthImage: %s\n", hasDepthImage ? "true" : "false");
-            nh.getParam(nodeName+"/real", real);
-            if(hasDepthImage) {
+            nh.param(nodeName + "/lane", doLane, false);
+            nh.param(nodeName + "/sign", doSign, false);
+
+            if(Sign.hasDepthImage) {
                 std::string topic;
-                if (real) {
+                if (Sign.real) {
                     topic = "/camera/aligned_depth_to_color/image_raw";
                 } else {    
                     topic = "/camera/depth/image_raw";
@@ -56,6 +47,17 @@ class CameraNode {
             std::cout << "waiting for rgb image" << std::endl;
             ros::topic::waitForMessage<sensor_msgs::Image>("/camera/color/image_raw", nh);
             std::cout << "got color image" << std::endl;
+
+            //define rate
+            ros::Rate loop_rate(25);
+
+            // std::thread t1(&CameraNode::run_lane, &CameraNode);
+            // std::thread t2(&CameraNode::run_sign, &CameraNode); 
+            while(ros::ok()) {
+                ros::spinOnce();
+            }
+            // t1.join();
+            // t2.join();
         }
         SignFastest Sign;
         LaneDetector Lane;
@@ -66,12 +68,10 @@ class CameraNode {
         image_transport::Subscriber depth_sub;
         image_transport::ImageTransport it;
         cv::Mat depthImage, colorImage;
-        bool show;
-        bool print;
-        bool printDuration;
-        bool hasDepthImage;
         cv_bridge::CvImagePtr cv_ptr;
         cv_bridge::CvImagePtr cv_ptr_depth;
+        
+        bool doLane, doSign;
 
         //lock
         std::mutex mutex;
@@ -96,8 +96,12 @@ class CameraNode {
                 return;
             }
             // colorImage = cv_ptr->image;
-            Lane.publish_lane(cv_ptr->image);
-            Sign.publish_sign(cv_ptr->image, cv_ptr_depth->image);
+            if (doLane) {
+                Lane.publish_lane(cv_ptr->image);
+            }
+            if (doSign) {
+                Sign.publish_sign(cv_ptr->image, cv_ptr_depth->image);
+            }
             // mutex.unlock();
         }
         void run_lane() {
@@ -141,16 +145,6 @@ int main(int argc, char **argv) {
     ros::NodeHandle nh;
 
     CameraNode CameraNode(nh);
-    //define rate
-    ros::Rate loop_rate(25);
-
-    // std::thread t1(&CameraNode::run_lane, &CameraNode);
-    // std::thread t2(&CameraNode::run_sign, &CameraNode); 
-    while(ros::ok()) {
-        ros::spinOnce();
-    }
-    // t1.join();
-    // t2.join();
 
     return 0;
 }

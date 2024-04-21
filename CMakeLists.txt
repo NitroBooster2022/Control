@@ -165,11 +165,18 @@ target_link_libraries(cameraNode3
 add_executable(cameraNodeRos
   src/cameraNodeRos.cpp
   src/yolo-fastestv2.cpp
+  src/engine.cpp
+  src/yolov8.cpp
 )
 target_link_libraries(cameraNodeRos
   ${catkin_LIBRARIES}
-  ncnn ${OpenCV_LIBS}
+  ncnn
+  ${OpenCV_LIBS}
   ${realsense2_LIBRARY}
+  ${CUDA_LIBRARIES}
+  nvinfer
+  nvparsers
+  nvonnxparser
 )
 # add_executable(cameraNode
 #   src/cameraNode.cpp

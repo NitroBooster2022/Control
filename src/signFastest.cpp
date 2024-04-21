@@ -38,7 +38,7 @@ class signFastest {
             nh.getParam("/signFastest2/hasDepthImage", hasDepthImage);
             nh.getParam("/signFastest2/real", real);
             std::string model;
-            nh.getParam("model", model);
+            nh.getParam("ncnn_model", model);
             std::cout << "showFlag: " << show << std::endl;
             std::cout << "printFlag: " << print << std::endl;
             std::cout << "printDuration: " << printDuration << std::endl;

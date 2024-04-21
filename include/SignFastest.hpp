@@ -2,6 +2,11 @@
 
 #include "ros/ros.h"
 #include "yolo-fastestv2.h"
+#include <opencv2/opencv.hpp>
+#include <opencv2/opencv.hpp>
+#include <opencv2/core.hpp>
+#include <opencv2/core/types.hpp>
+#include <opencv2/cudaimgproc.hpp>
 #include "cv_bridge/cv_bridge.h"
 #include "image_transport/image_transport.h"
 #include "sensor_msgs/image_encodings.h"
@@ -10,23 +15,38 @@
 #include <vector>
 #include <std_msgs/Float32MultiArray.h>
 #include <mutex>
+#include "engine.h"
+#include "yolov8.h"
+#include <memory>
 
 using namespace std::chrono;
+// using namespace nvinfer1;
+
+std::string getSourceDirectory() {
+    std::string file_path(__FILE__);  // __FILE__ is the full path of the source file
+    size_t last_dir_sep = file_path.rfind('/');  // For Unix/Linux path
+    if (last_dir_sep == std::string::npos) {
+        last_dir_sep = file_path.rfind('\\');  // For Windows path
+    }
+    if (last_dir_sep != std::string::npos) {
+        return file_path.substr(0, last_dir_sep);  // Extract directory path
+    }
+    return "";  // Return empty string if path not found
+}
 
 class SignFastest {
     public:
-        SignFastest(ros::NodeHandle& nh) 
+        SignFastest(ros::NodeHandle& nh)
             // :it(nh)
         {
             std::cout.precision(4);
-            nh.getParam("class_names", class_names);
-            // nh.getParam("confidence_thresholds", confidence_thresholds);
-            if(!nh.getParam("confidence_thresholds", confidence_thresholds)) {
+            nh.param("class_names", class_names, std::vector<std::string>());
+            if(!nh.param("confidence_thresholds", confidence_thresholds, std::vector<float>())) {
                 ROS_WARN("Failed to get 'confidence_thresholds' parameter.");
             } else {
                 std::cout << "confidence_thresholds: " << confidence_thresholds.size() << std::endl;
             }
-            if (!nh.getParam("max_distance_thresholds", distance_thresholds)) {
+            if (!nh.param("max_distance_thresholds", distance_thresholds, std::vector<float>())) {
                 ROS_WARN("Failed to get 'max_distance_thresholds' parameter.");
             } else {
                 for (float val : distance_thresholds) {
@@ -37,14 +57,16 @@ class SignFastest {
                 }
             }
             std::string nodeName = ros::this_node::getName();
-            nh.getParam(nodeName+"/showFlag", show);
-            nh.getParam(nodeName+"/printFlag", print);
-            nh.getParam(nodeName+"/printFlag", printDuration); //printDuration
-            nh.getParam(nodeName+"/hasDepthImage", hasDepthImage);
-            nh.getParam(nodeName+"/real", real);
-            nh.getParam(nodeName+"/pub", publish);
+            nh.param(nodeName+"/showFlag", show, false);
+            nh.param(nodeName+"/printFlag", print, false);
+            nh.param(nodeName+"/printFlag", printDuration, false); //printDuration
+            nh.param(nodeName+"/hasDepthImage", hasDepthImage, false);
+            nh.param(nodeName+"/real", real, false);
+            nh.param(nodeName+"/pub", publish, false);
+            nh.param(nodeName+"/ncnn", ncnn, false);
+
             std::string model;
-            nh.getParam("model", model);
+            nh.param("ncnn_model", model, std::string("sissi753-opt"));
             std::cout << "showFlag: " << show << std::endl;
             std::cout << "printFlag: " << print << std::endl;
             std::cout << "printDuration: " << printDuration << std::endl;
@@ -54,27 +76,26 @@ class SignFastest {
             std::cout << "model: " << model << std::endl;
             printf("hasDepthImage: %s\n", hasDepthImage ? "true" : "false");
 
-            // std::string filePathParam = __FILE__;
-            // size_t pos = filePathParam.rfind("/") + 1;
-            // filePathParam.replace(pos, std::string::npos, "model/sissi753-opt.param");
-            // const char* param = filePathParam.c_str();
-            // std::string filePathBin = __FILE__;
-            // pos = filePathBin.rfind("/") + 1;
-            // filePathBin.replace(pos, std::string::npos, "model/sissi753-opt.bin");
-            // const char* bin = filePathBin.c_str();
-            // api.loadModel(param,bin);
+            if (ncnn) {
+                std::string filePathParam = __FILE__;
+                size_t pos = filePathParam.rfind("/") + 1;
+                filePathParam.replace(pos, std::string::npos, "model/" + model + ".param");
+                const char* param = filePathParam.c_str();
 
-            std::string filePathParam = __FILE__;
-            size_t pos = filePathParam.rfind("/") + 1;
-            filePathParam.replace(pos, std::string::npos, "model/" + model + ".param");
-            const char* param = filePathParam.c_str();
+                std::string filePathBin = __FILE__;
+                pos = filePathBin.rfind("/") + 1;
+                filePathBin.replace(pos, std::string::npos, "model/" + model + ".bin");
+                const char* bin = filePathBin.c_str();
 
-            std::string filePathBin = __FILE__;
-            pos = filePathBin.rfind("/") + 1;
-            filePathBin.replace(pos, std::string::npos, "model/" + model + ".bin");
-            const char* bin = filePathBin.c_str();
-
-            api.loadModel(param, bin);
+                api.loadModel(param, bin);
+            } else {
+                std::string model_name;
+                nh.param("model_name", model_name, std::string("citycocov2lgtclab_20")); 
+                // model_name = "v2originalTRT"; 
+                std::string current_path = getSourceDirectory();
+                std::string modelPath = current_path + "/v8_model/" + model_name + ".onnx";
+                yolov8 = std::make_unique<YoloV8>(modelPath, config);
+            }
 
             pub = nh.advertise<std_msgs::Float32MultiArray>("sign", 10);
             std::cout <<"pub created" << std::endl;
@@ -96,9 +117,7 @@ class SignFastest {
         };
         // private:
         yoloFastestv2 api;
-        // image_transport::Subscriber sub;
-        // image_transport::Subscriber depth_sub;
-        // image_transport::ImageTransport it;
+
         ros::Publisher pub;
         bool show;
         bool print;
@@ -106,8 +125,8 @@ class SignFastest {
         bool hasDepthImage;
         bool real;
         bool publish;
-        // cv_bridge::CvImagePtr cv_ptr;
-        // cv_bridge::CvImagePtr cv_ptr_depth = nullptr;
+        bool ncnn;
+
         cv::Mat normalizedDepthImage;
         cv::Mat croppedDepth;
 
@@ -123,6 +142,16 @@ class SignFastest {
         std::vector<std::string> class_names;
 
         std::mutex mutex;
+
+        std::vector<cv::Rect> tmp_boxes;
+        std::vector<float> scores;
+        std::vector<int> classes;
+        TargetBox tmp_box;
+
+        //yolov8 engine inference related
+        std::vector<Object> detected_objects;
+        YoloV8Config config;
+        std::unique_ptr<YoloV8> yolov8;
 
         static constexpr double SIGN_H2D_RATIO = 31.57;
         static constexpr double LIGHT_W2D_RATIO = 41.87;
@@ -143,39 +172,70 @@ class SignFastest {
             if (distance > expected_dist * 3 || distance < expected_dist * 1/3) return false;
             return true;
         }
+        int populate_sign_msg(std_msgs::Float32MultiArray& sign_msg, const cv::Mat& image, const cv::Mat& depthImage, int class_id, float confidence, int x1, int y1, int x2, int y2) {
+            if (confidence >= confidence_thresholds[class_id]) {
+                double distance;
+                if(hasDepthImage) {
+                    if (depthImage.empty()) {
+                        ROS_ERROR("Depth image is empty");
+                        return 0;
+                    } else {
+                        distance = computeMedianDepth(depthImage, x1, y1, x2, y2)/1000; // in meters
+                    }
+                } else {
+                    distance = -1;
+                }
+                double expected_dist = distance_makes_sense(distance, class_id, x1, y1, x2, y2);
+                if (!expected_dist) {
+                    // ROS_WARN("Distance does not make sense, expected: %.3f, got: %.3f", expected_dist, distance);
+                    return 0;
+                }
+                sign_msg.data.push_back(x1);
+                sign_msg.data.push_back(y1);
+                sign_msg.data.push_back(x2);
+                sign_msg.data.push_back(y2);
+                sign_msg.data.push_back(distance);
+                sign_msg.data.push_back(confidence);
+                sign_msg.data.push_back(static_cast<float>(class_id));
+                return 1;
+            }
+            return 0;
+        }
         void publish_sign(const cv::Mat& image, const cv::Mat& depthImage) {
             if(image.empty()) {
                 ROS_WARN("empty image received in sign detector");
                 return;
             }
             if(printDuration) start = high_resolution_clock::now();
-            api.detection(image, boxes);
             std_msgs::Float32MultiArray sign_msg;
             sign_msg.layout.data_offset = 0;
 
             int hsy = 0;
-            for (const auto &box : boxes) {
-                int class_id = box.cate;
-                float confidence = box.score;
-                if (confidence >= confidence_thresholds[class_id]) {
-                    double distance;
-                    if(hasDepthImage && !depthImage.empty()) {
-                        distance = computeMedianDepth(depthImage, box)/1000; // in meters
-                    } else {
-                        ROS_WARN("No depth image received");
-                        distance = -1;
-                    }
-                    if (!distance_makes_sense(distance, class_id, box.x1, box.y1, box.x2, box.y2)) continue;
-                    sign_msg.data.push_back(box.x1);
-                    sign_msg.data.push_back(box.y1);
-                    sign_msg.data.push_back(box.x2);
-                    sign_msg.data.push_back(box.y2);
-                    sign_msg.data.push_back(distance);
-                    sign_msg.data.push_back(confidence);
-                    sign_msg.data.push_back(static_cast<float>(class_id));
-                    hsy++;
+            
+            if (ncnn) {
+                api.detection(image, boxes);
+                for (const auto &box : boxes) {
+                    int class_id = box.cate;
+                    float confidence = box.score;
+                    int x1 = box.x1;
+                    int y1 = box.y1;
+                    int x2 = box.x2;
+                    int y2 = box.y2;
+                    if (populate_sign_msg(sign_msg, image, depthImage, class_id, confidence, x1, y1, x2, y2)) hsy++;
+                }
+            } else {
+                detected_objects = yolov8->detectObjects(image);
+                for (const struct Object& box : detected_objects) {
+                    int class_id = box.label;
+                    float confidence = box.probability;
+                    int x1 = box.rect.x;
+                    int y1 = box.rect.y;
+                    int x2 = box.rect.x + box.rect.width;
+                    int y2 = box.rect.y + box.rect.height;
+                    if (populate_sign_msg(sign_msg, image, depthImage, class_id, confidence, x1, y1, x2, y2)) hsy++;
                 }
             }
+
             if(hsy) {
                 std_msgs::MultiArrayDimension dim;
                 dim.label = "detections";
@@ -192,86 +252,94 @@ class SignFastest {
             }
             // for display
             if (show) {
-                // Normalize depth img
-                double maxVal;
-                double minVal;
-                if (hasDepthImage) {
-                    cv::minMaxIdx(depthImage, &minVal, &maxVal);
-                    depthImage.convertTo(normalizedDepthImage, CV_8U, 255.0 / (maxVal - minVal), -minVal * 255.0 / (maxVal - minVal));
-                }
-                for (int i = 0; i < boxes.size(); i++) {
-                    char text[256];
-                    int id = boxes[i].cate;
-                    if(boxes[i].score < confidence_thresholds[id]) continue;
-                    sprintf(text, "%s %.1f%%", class_names[id].c_str(), boxes[i].score * 100);
-                    char text2[256];
+                if (ncnn) {
+                    // Normalize depth img
+                    double maxVal;
+                    double minVal;
                     if (hasDepthImage) {
-                        double distance = computeMedianDepth(depthImage, boxes[i])/1000; 
-                        sprintf(text2, "%s %.1fm", class_names[id].c_str(), distance);
+                        cv::minMaxIdx(depthImage, &minVal, &maxVal);
+                        depthImage.convertTo(normalizedDepthImage, CV_8U, 255.0 / (maxVal - minVal), -minVal * 255.0 / (maxVal - minVal));
                     }
-                    int baseLine = 0;
-                    cv::Size label_size = cv::getTextSize(text, cv::FONT_HERSHEY_SIMPLEX, 0.5, 1, &baseLine);
+                    for (int i = 0; i < boxes.size(); i++) {
+                        char text[256];
+                        int id = boxes[i].cate;
+                        if(boxes[i].score < confidence_thresholds[id]) continue;
+                        sprintf(text, "%s %.1f%%", class_names[id].c_str(), boxes[i].score * 100);
+                        char text2[256];
+                        if (hasDepthImage) {
+                            double distance = computeMedianDepth(depthImage, boxes[i].x1, boxes[i].y1, boxes[i].x2, boxes[i].y2)/1000;
+                            sprintf(text2, "%s %.1fm", class_names[id].c_str(), distance);
+                        }
+                        int baseLine = 0;
+                        cv::Size label_size = cv::getTextSize(text, cv::FONT_HERSHEY_SIMPLEX, 0.5, 1, &baseLine);
 
-                    int x = boxes[i].x1;
-                    int y = boxes[i].y1 - label_size.height - baseLine;
-                    if (y < 0)
-                        y = 0;
-                    if (x + label_size.width > image.cols)
-                        x = image.cols - label_size.width;
-                    
-                    cv::rectangle(image, cv::Rect(cv::Point(x, y), cv::Size(label_size.width, label_size.height + baseLine)),
-                                cv::Scalar(255, 255, 255), -1);
-                    cv::putText(image, text, cv::Point(x, y + label_size.height),
-                                cv::FONT_HERSHEY_SIMPLEX, 0.5, cv::Scalar(0, 0, 0));
-                    cv::rectangle (image, cv::Point(boxes[i].x1, boxes[i].y1), 
-                                cv::Point(boxes[i].x2, boxes[i].y2), cv::Scalar(255, 255, 0), 2, 2, 0);
-                    if(hasDepthImage) {
-                        cv::rectangle(normalizedDepthImage, cv::Rect(cv::Point(x, y), cv::Size(label_size.width, label_size.height + baseLine)),
-                                cv::Scalar(255, 255, 255), -1);
-                        cv::putText(normalizedDepthImage, text2, cv::Point(x, y + label_size.height),
-                                cv::FONT_HERSHEY_SIMPLEX, 0.5, cv::Scalar(0, 0, 0));
-                        cv::rectangle (normalizedDepthImage, cv::Point(boxes[i].x1, boxes[i].y1), 
-                                cv::Point(boxes[i].x2, boxes[i].y2), cv::Scalar(255, 255, 0), 2, 2, 0);
+                        int x = boxes[i].x1;
+                        int y = boxes[i].y1 - label_size.height - baseLine;
+                        if (y < 0)
+                            y = 0;
+                        if (x + label_size.width > image.cols)
+                            x = image.cols - label_size.width;
+                        
+                        cv::rectangle(image, cv::Rect(cv::Point(x, y), cv::Size(label_size.width, label_size.height + baseLine)),
+                                    cv::Scalar(255, 255, 255), -1);
+                        cv::putText(image, text, cv::Point(x, y + label_size.height),
+                                    cv::FONT_HERSHEY_SIMPLEX, 0.5, cv::Scalar(0, 0, 0));
+                        cv::rectangle (image, cv::Point(boxes[i].x1, boxes[i].y1), 
+                                    cv::Point(boxes[i].x2, boxes[i].y2), cv::Scalar(255, 255, 0), 2, 2, 0);
+                        if(hasDepthImage) {
+                            cv::rectangle(normalizedDepthImage, cv::Rect(cv::Point(x, y), cv::Size(label_size.width, label_size.height + baseLine)),
+                                    cv::Scalar(255, 255, 255), -1);
+                            cv::putText(normalizedDepthImage, text2, cv::Point(x, y + label_size.height),
+                                    cv::FONT_HERSHEY_SIMPLEX, 0.5, cv::Scalar(0, 0, 0));
+                            cv::rectangle (normalizedDepthImage, cv::Point(boxes[i].x1, boxes[i].y1), 
+                                    cv::Point(boxes[i].x2, boxes[i].y2), cv::Scalar(255, 255, 0), 2, 2, 0);
+                        }
                     }
-                }
-                if(hasDepthImage) {
+                    if(hasDepthImage) {
+                        cv::imshow("normalized depth image", normalizedDepthImage);
+                    }
+                    cv::imshow("image", image);
+                    cv::waitKey(1);
+                } else {
+                    cv::Mat image_copy = image.clone();
+                    yolov8->drawObjectLabels(image_copy, detected_objects);
+                    double maxVal;
+                    double minVal;
+                    if (hasDepthImage) {
+                        cv::minMaxIdx(depthImage, &minVal, &maxVal);
+                        depthImage.convertTo(normalizedDepthImage, CV_8U, 255.0 / (maxVal - minVal), -minVal * 255.0 / (maxVal - minVal));
+                    }
+                    yolov8->drawObjectLabels(normalizedDepthImage, detected_objects);
+
                     cv::imshow("normalized depth image", normalizedDepthImage);
+                    cv::imshow("image", image_copy);
+                    cv::waitKey(1);
                 }
-                cv::imshow("image", image);
-                cv::waitKey(1);
             }
             if (print) {
-                for (int i = 0; i < boxes.size(); i++) {
-                    double distance = computeMedianDepth(depthImage, boxes[i])/1000;
-                    std::cout<< "x1:" << boxes[i].x1<<", y1:"<<boxes[i].y1<<", x2:"<<boxes[i].x2<<", y2:"<<boxes[i].y2
-                     <<", conf:"<<boxes[i].score<<", id:"<<boxes[i].cate<<", "<<class_names[boxes[i].cate]<<", dist:"<< distance <<", w:"<<boxes[i].x2-boxes[i].x1<<", h:"<<boxes[i].y2-boxes[i].y1<<std::endl;
+                if (ncnn) {
+                    for (int i = 0; i < boxes.size(); i++) {
+                        double distance = computeMedianDepth(depthImage, boxes[i].x1, boxes[i].y1, boxes[i].x2, boxes[i].y2)/1000;
+                        std::cout<< "x1:" << boxes[i].x1<<", y1:"<<boxes[i].y1<<", x2:"<<boxes[i].x2<<", y2:"<<boxes[i].y2
+                        <<", conf:"<<boxes[i].score<<", id:"<<boxes[i].cate<<", "<<class_names[boxes[i].cate]<<", dist:"<< distance <<", w:"<<boxes[i].x2-boxes[i].x1<<", h:"<<boxes[i].y2-boxes[i].y1<<std::endl;
+                    }
+                } else {
+                    for (const struct Object& box : detected_objects) {
+                        double distance = computeMedianDepth(depthImage, box.rect.x, box.rect.y, box.rect.x + box.rect.width, box.rect.y + box.rect.height)/1000;
+                        std::cout<< "x1:" << box.rect.x<<", y1:"<<box.rect.y<<", x2:"<<box.rect.x + box.rect.width<<", y2:"<<box.rect.y + box.rect.height
+                        <<", conf:"<<box.probability<<", id:"<<box.label<<", "<<class_names[box.label]<<", dist:"<< distance <<", w:"<<box.rect.width<<", h:"<<box.rect.height<<std::endl;
+                    }
+                
                 }
             }
         }
-        
-        // void depthCallback(const sensor_msgs::ImageConstPtr &msg) {
-        //     cv_ptr_depth = cv_bridge::toCvCopy(msg, sensor_msgs::image_encodings::TYPE_32FC1);
-        //     if(cv_ptr_depth == nullptr || cv_ptr_depth->image.empty()) {
-        //         ROS_ERROR("cv_bridge failed to convert image");
-        //         return;
-        //     }
-        // }
-        // void imageCallback(const sensor_msgs::ImageConstPtr &msg) {
-        //     if(printDuration) start = high_resolution_clock::now();
-        //     cv_ptr = cv_bridge::toCvCopy(msg, sensor_msgs::image_encodings::BGR8);
-        //     if (!cv_ptr) {
-        //         ROS_ERROR("cv_bridge failed to convert image");
-        //         return;
-        //     }
-        //     publishSign(cv_ptr->image, cv_ptr_depth->image);
-        // }
     
-        double computeMedianDepth(const cv::Mat& depthImage, const TargetBox& box) {
+        double computeMedianDepth(const cv::Mat& depthImage, int bbox_x1, int bbox_y1, int bbox_x2, int bbox_y2) {
             // Ensure the bounding box coordinates are valid
-            int x1 = std::max(0, box.x1);
-            int y1 = std::max(0, box.y1);
-            int x2 = std::min(depthImage.cols, box.x2);
-            int y2 = std::min(depthImage.rows, box.y2);
+            int x1 = std::max(0, bbox_x1);
+            int y1 = std::max(0, bbox_y1);
+            int x2 = std::min(depthImage.cols, bbox_x2);
+            int y2 = std::min(depthImage.rows, bbox_y2);
             croppedDepth = depthImage(cv::Rect(x1, y1, x2 - x1, y2 - y1));
             std::vector<double> depths;
             for (int i = 0; i < croppedDepth.rows; ++i) {
