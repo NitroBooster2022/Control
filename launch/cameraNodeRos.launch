@@ -10,6 +10,7 @@
 <arg name="lane" default="true"/>
 <arg name="sign" default="true"/>
 <arg name="ncnn" default="false"/>
+<arg name="newlane" default="true"/>
 <node pkg="control" name="$(anon cameraNode)" output="screen" type="cameraNodeRos" required="true">
     <param name="/showFlag" value="$(arg show)"/>
     <param name="/printFlag" value="$(arg print)"/>
@@ -20,6 +21,7 @@
     <param name="/lane" value="$(arg lane)"/>
     <param name="/sign" value="$(arg sign)"/>
     <param name="/ncnn" value="$(arg ncnn)"/>
+    <param name="/newlane" value="$(arg newlane)"/>
 </node>
 
 </launch>

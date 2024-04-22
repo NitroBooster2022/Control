@@ -20,7 +20,6 @@
 #include <memory>
 
 using namespace std::chrono;
-// using namespace nvinfer1;
 
 std::string getSourceDirectory() {
     std::string file_path(__FILE__);  // __FILE__ is the full path of the source file
@@ -37,7 +36,6 @@ std::string getSourceDirectory() {
 class SignFastest {
     public:
         SignFastest(ros::NodeHandle& nh)
-            // :it(nh)
         {
             std::cout.precision(4);
             nh.param("class_names", class_names, std::vector<std::string>());

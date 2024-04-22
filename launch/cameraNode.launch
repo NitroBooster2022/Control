@@ -5,20 +5,29 @@
 <arg name="print" default="false"/>
 <arg name="print_duration" default="false"/>
 <arg name="depth" default="true"/>
-<arg name="real" default="true"/>
-<node pkg="control" name="signFastest" output="screen" type="cameraNode3" required="true">
-    <param name="showFlag" value="$(arg show)"/>
-    <param name="printFlag" value="$(arg print)"/>
-    <param name="printDuration" value="$(arg print_duration)"/>
-    <param name="hasDepthImage" value="$(arg depth)"/>
-    <param name="real" value="$(arg real)"/>
-</node>
-<node pkg="imu_filter_madgwick" type="imu_filter_node" name="ImuFilter">
-        <param name="use_mag" type="bool" value="false" />
-        <param name="_publish_tf" type="bool" value="false" />
-        <param name="_world_frame" type="string" value="enu" />
-        <remap from="/imu/data_raw" to="/camera/imu"/>
-        <remap from="/imu/data" to="/realsense/imu"/>
+<arg name="real" default="false"/>
+<arg name="pub" default="true"/>
+<arg name="lane" default="true"/>
+<arg name="sign" default="true"/>
+<arg name="ncnn" default="false"/>
+<arg name="newlane" default="true"/>
+<arg name="realsense" default="false"/>
+<arg name="rate" default="50"/>
+<arg name="pubImage" default="true"/>
+
+<node pkg="control" name="$(anon cameraNode)" output="screen" type="cameraNodeRos" required="true">
+    <param name="/showFlag" value="$(arg show)"/>
+    <param name="/printFlag" value="$(arg print)"/>
+    <param name="/printDuration" value="$(arg print_duration)"/>
+    <param name="/hasDepthImage" value="$(arg depth)"/>
+    <param name="/real" value="$(arg real)"/>
+    <param name="/pub" value="$(arg pub)"/>
+    <param name="/lane" value="$(arg lane)"/>
+    <param name="/sign" value="$(arg sign)"/>
+    <param name="/ncnn" value="$(arg ncnn)"/>
+    <param name="/newlane" value="$(arg newlane)"/>
+    <param name="/realsense" value="$(arg realsense)"/>
+    <param name="/rate" value="$(arg rate)"/>
 </node>
 
 </launch>
