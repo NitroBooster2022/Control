@@ -51,13 +51,13 @@ class CameraNode {
             //define rate
             ros::Rate loop_rate(25);
 
-            // std::thread t1(&CameraNode::run_lane, &CameraNode);
-            // std::thread t2(&CameraNode::run_sign, &CameraNode); 
+            std::thread t1(&CameraNode::run_lane, this);
+            std::thread t2(&CameraNode::run_sign, this);
             while(ros::ok()) {
                 ros::spinOnce();
             }
-            // t1.join();
-            // t2.join();
+            t1.join();
+            t2.join();
         }
         SignFastest Sign;
         LaneDetector Lane;
@@ -77,7 +77,7 @@ class CameraNode {
         std::mutex mutex;
        
         void depthCallback(const sensor_msgs::ImageConstPtr &msg) {
-            // mutex.lock();
+            mutex.lock();
             cv_ptr_depth = cv_bridge::toCvCopy(msg, sensor_msgs::image_encodings::TYPE_32FC1);
             if(cv_ptr_depth == nullptr) {
                 std::cout << "cv_ptr_depth is null" << std::endl;
@@ -85,7 +85,7 @@ class CameraNode {
                 return;
             }
             depthImage = cv_ptr_depth->image;
-            // mutex.unlock();
+            mutex.unlock();
         }
         void imageCallback(const sensor_msgs::ImageConstPtr &msg) {
             // mutex.lock();
@@ -95,20 +95,30 @@ class CameraNode {
                 // mutex.unlock();
                 return;
             }
-            // colorImage = cv_ptr->image;
-            if (doLane) {
-                Lane.publish_lane(cv_ptr->image);
-            }
-            if (doSign) {
-                Sign.publish_sign(cv_ptr->image, cv_ptr_depth->image);
-            }
+            colorImage = cv_ptr->image;
+            // if (doLane) {
+            //     Lane.publish_lane(cv_ptr->image);
+            // }
+            // if (doSign) {
+            //     Sign.publish_sign(cv_ptr->image, cv_ptr_depth->image);
+            // }
             // mutex.unlock();
         }
+
         void run_lane() {
             static ros::Rate lane_rate(30);
+            if (!doLane) {
+                ROS_INFO("Lane detection is disabled");
+                return;
+            }
             while(ros::ok()) {
                 if (cv_ptr == nullptr) {
                     std::cout << "cv_ptr is null" << std::endl;
+                    lane_rate.sleep();
+                    continue;
+                }
+                if (colorImage.empty()) {
+                    std::cout << "colorImage is empty" << std::endl;
                     lane_rate.sleep();
                     continue;
                 }
@@ -118,6 +128,10 @@ class CameraNode {
         }
         void run_sign() {
             static ros::Rate sign_rate(15);
+            if (!doSign) {
+                ROS_INFO("Sign detection is disabled");
+                return;
+            }
             while(ros::ok()) {
                 if (cv_ptr == nullptr) {
                     std::cout << "cv_ptr is null" << std::endl;
@@ -126,6 +140,16 @@ class CameraNode {
                 }
                 if (cv_ptr_depth == nullptr) {
                     std::cout << "cv_ptr_depth is null" << std::endl;
+                    sign_rate.sleep();
+                    continue;
+                }
+                if (colorImage.empty()) {
+                    std::cout << "colorImage is empty" << std::endl;
+                    sign_rate.sleep();
+                    continue;
+                }
+                if (depthImage.empty()) {
+                    std::cout << "depthImage is empty" << std::endl;
                     sign_rate.sleep();
                     continue;
                 }

@@ -111,6 +111,7 @@ include_directories(
   ${CMAKE_CURRENT_SOURCE_DIR}/src/control/src/include
   ${OpenCV_INCLUDE_DIRS}
   # ${CMAKE_CURRENT_SOURCE_DIR}/src/control/src/include
+  ${CMAKE_CURRENT_SOURCE_DIR}/include/alglib-cpp/src
 )
 
 include_directories(~/TensorRT-8.6.1.6/include)
@@ -131,42 +132,48 @@ link_directories(/usr/local/lib)
 # add_executable(camera
 #   src/camera.cpp
 # )
-# add_executable(cameraExample
-#   src/cameraExample.cpp
-#   src/yolo-fastestv2.cpp
+# target_link_libraries(camera
+#   ${catkin_LIBRARIES}
 # )
+
 add_executable(lane
   src/lane.cpp
 )
-# add_executable(sign
-#   src/sign.cpp
-# )
+target_link_libraries(lane
+  ${catkin_LIBRARIES}
+)
+
 add_executable(signFastest
   src/signFastest.cpp
   src/yolo-fastestv2.cpp
 )
+target_link_libraries(signFastest
+  ${catkin_LIBRARIES}
+  ncnn ${OpenCV_LIBS}
+)
+
 add_executable(videoDetector
   src/videoDetector.cpp
   src/yolo-fastestv2.cpp
+)
+target_link_libraries(videoDetector
+  ${catkin_LIBRARIES}
+  ncnn ${OpenCV_LIBS}
 )
 add_executable(signTRT2
 src/signTRT2.cpp
 src/engine.cpp
 src/yolov8.cpp
 )
-
-add_executable(bridge
-  src/localization_bridge.cpp
-)
-add_executable(cameraNode3
-  src/cameraNode3.cpp
-  src/yolo-fastestv2.cpp
-)
-target_link_libraries(cameraNode3
+target_link_libraries(signTRT2
   ${catkin_LIBRARIES}
-  ncnn ${OpenCV_LIBS}
-  ${realsense2_LIBRARY}
+  ${OpenCV_LIBS}
+  ${CUDA_LIBRARIES}
+  nvinfer
+  nvparsers
+  nvonnxparser
 )
+
 add_executable(cameraNodeRos
   src/cameraNodeRos.cpp
   src/yolo-fastestv2.cpp
@@ -182,67 +189,48 @@ target_link_libraries(cameraNodeRos
   nvinfer
   nvparsers
   nvonnxparser
+  alglib
+  ${Python3_LIBRARIES}
 )
-# add_executable(cameraNode
-#   src/cameraNode.cpp
-#   src/include/raspicam/raspicam_cv.cpp
-#   src/yolo-fastestv2.cpp
-# )
-# add_executable(cameraNode2
-#   src/cameraNode2.cpp
-#   # src/include/raspicam/raspicam_cv.cpp
-#   src/yolo-fastestv2.cpp
-# )
-# add_executable(localization
-#   src/localization.cpp
-# )
-
-# target_link_libraries(camera
-#   ${catkin_LIBRARIES}
-# )
-# target_link_libraries(cameraExample
-#   ${catkin_LIBRARIES}
-#   ncnn ${OpenCV_LIBS}
-# )
-target_link_libraries(lane
-  ${catkin_LIBRARIES}
+add_executable(cameraNodeReal
+  src/cameraNodeReal.cpp
+  src/yolo-fastestv2.cpp
+  src/engine.cpp
+  src/yolov8.cpp
 )
-# target_link_libraries(sign
-#   ${catkin_LIBRARIES}
-# )
-target_link_libraries(signFastest
+target_link_libraries(cameraNodeReal
   ${catkin_LIBRARIES}
-  ncnn ${OpenCV_LIBS}
-)
-target_link_libraries(signTRT2
-  ${catkin_LIBRARIES}
+  ncnn
   ${OpenCV_LIBS}
+  ${realsense2_LIBRARY}
   ${CUDA_LIBRARIES}
   nvinfer
   nvparsers
   nvonnxparser
+  alglib
+  ${Python3_LIBRARIES}
+  ${realsense2_LIBRARY}
 )
-target_link_libraries(videoDetector
-  ${catkin_LIBRARIES}
-  ncnn ${OpenCV_LIBS}
+add_executable(cameraNode
+  src/cameraNode.cpp
+  src/yolo-fastestv2.cpp
+  src/engine.cpp
+  src/yolov8.cpp
 )
-target_link_libraries(bridge
+target_link_libraries(cameraNode
   ${catkin_LIBRARIES}
+  ncnn
+  ${OpenCV_LIBS}
+  ${realsense2_LIBRARY}
+  ${CUDA_LIBRARIES}
+  nvinfer
+  nvparsers
+  nvonnxparser
+  alglib
+  ${Python3_LIBRARIES}
+  ${realsense2_LIBRARY}
 )
 
-# target_link_libraries(cameraNode
-#   ${catkin_LIBRARIES}
-#   ncnn ${OpenCV_LIBS}
-#   raspicam
-# )
-# target_link_libraries(cameraNode2
-#   ${catkin_LIBRARIES}
-#   ncnn ${OpenCV_LIBS}
-#   # raspicam
-# )
-# target_link_libraries(localization
-#   ${catkin_LIBRARIES}
-# )
 # find_package(OpenMP)
 # if (OpenMP_CXX_FOUND)
 #     target_link_libraries(signFastest PUBLIC OpenMP::OpenMP_CXX)
