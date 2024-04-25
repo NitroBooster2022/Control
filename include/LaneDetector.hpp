@@ -35,6 +35,7 @@ public:
         nh.getParam(nodeName+"/showFlag", showflag);
         nh.getParam(nodeName+"/printFlag", printflag);
         nh.getParam(nodeName+"/pub", publish);
+        nh.param(nodeName+"/printDuration", printDuration, false);
         nh.param(nodeName+"/newlane", newlane, false);
         // ros::Rate rate(40); 
         // while (ros::ok()) {
@@ -69,7 +70,7 @@ public:
     double threshold_value_stop;
     cv::Mat threshs;
     cv::Mat hists;
-    bool showflag, printflag, newlane;
+    bool showflag, printflag, newlane, printDuration;
     std::mutex mutex;
 
     // NEW LANE
@@ -166,9 +167,11 @@ public:
             // Publish the message
             waypoints_pub.publish(waypoints_msg);
 
-            cv::Mat gyu_img = viz3(ipm_color,image, ret, waypoints,y_Values, true);
-            cv::imshow("Binary Image", gyu_img);
-            cv::waitKey(1);
+            if(showflag) {
+                cv::Mat gyu_img = viz3(ipm_color,image, ret, waypoints,y_Values, true);
+                cv::imshow("Binary Image", gyu_img);
+                cv::waitKey(1);
+            }
         } else {
             double center = optimized_histogram(image, showflag, printflag);
             lane_msg.center = center;
@@ -176,9 +179,11 @@ public:
             lane_msg.header.stamp = ros::Time::now();
             lane_pub.publish(lane_msg);
         }
-        auto stop = high_resolution_clock::now();
-        auto duration = duration_cast<microseconds>(stop - start);
-        std::cout << "durations: " << duration.count() << std::endl;
+        if (printDuration) {
+            auto stop = high_resolution_clock::now();
+            auto duration = duration_cast<microseconds>(stop - start);
+            ROS_INFO("duration: %ld", duration.count());
+        }
     }
 
     // std::vector<int> extract_lanes(const cv::Mat& hist_data) {
