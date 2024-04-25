@@ -91,7 +91,7 @@ class SignFastest {
                 nh.param("model_name", model_name, std::string("citycocov2lgtclab_20")); 
                 // model_name = "v2originalTRT"; 
                 std::string current_path = getSourceDirectory();
-                std::string modelPath = current_path + "/v8_model/" + model_name + ".onnx";
+                std::string modelPath = current_path + "/../models/" + model_name + ".onnx";
                 yolov8 = std::make_unique<YoloV8>(modelPath, config);
             }
 
