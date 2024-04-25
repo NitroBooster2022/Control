@@ -43,7 +43,7 @@ class CameraNode {
                         topic = "/camera/depth/image_raw";
                     }
                     depth_sub = it.subscribe(topic, 3, &CameraNode::depthCallback, this);
-                    std::cout << "depth_sub created" << std::endl;
+                    std::cout << "depth_sub created, waiting for " << topic << std::endl;
                     ros::topic::waitForMessage<sensor_msgs::Image>(topic, nh);
                     std::cout << "got it" << std::endl;
                 }
