@@ -130,12 +130,13 @@ class signTRT{
 
             //display
             if(show) {
-                yolov8.drawObjectLabels(cv_ptr->image, detected_objects);
+                std::vector<double> distances;
+                yolov8.drawObjectLabels(cv_ptr->image, detected_objects, distances);
                 double maxVal;
                 double minVal;
                 cv::minMaxIdx(cv_ptr_depth->image,&minVal,&maxVal);
                 cv_ptr_depth->image.convertTo(normalizedDepthImage,CV_8U,255.0/(maxVal-minVal),-minVal*255.0/(maxVal-minVal));
-                yolov8.drawObjectLabels(normalizedDepthImage, detected_objects);
+                yolov8.drawObjectLabels(normalizedDepthImage, detected_objects, distances);
 
                 cv::imshow("normalized depth image", normalizedDepthImage);
                 cv::imshow("image", cv_ptr->image);

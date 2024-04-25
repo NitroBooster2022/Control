@@ -425,7 +425,7 @@ std::vector<Object> YoloV8::postprocessDetect(std::vector<float> &featureVector)
     return objects;
 }
 
-void YoloV8::drawObjectLabels(cv::Mat& image, const std::vector<Object> &objects, unsigned int scale) {
+void YoloV8::drawObjectLabels(cv::Mat& image, const std::vector<Object> &objects, const std::vector<double> &distances, unsigned int scale) {
     // If segmentation information is present, start with that
     if (!objects.empty() && !objects[0].boxMask.empty()) {
         cv::Mat mask = image.clone();
@@ -443,6 +443,7 @@ void YoloV8::drawObjectLabels(cv::Mat& image, const std::vector<Object> &objects
         cv::addWeighted(image, 0.5, mask, 0.8, 1, image);
     }
 
+    int i = 0;
     // Bounding boxes and annotations
     for (auto & object : objects) {
         // Choose the color
@@ -462,7 +463,11 @@ void YoloV8::drawObjectLabels(cv::Mat& image, const std::vector<Object> &objects
 
         // Draw rectangles and text
         char text[256];
-        sprintf(text, "%s %.1f%%", CLASS_NAMES[object.label].c_str(), object.probability * 100);
+        if (distances.empty())
+            sprintf(text, "%s %.1f%%", CLASS_NAMES[object.label].c_str(), object.probability * 100);
+        else if (i < distances.size())
+            sprintf(text, "%s %.1f%% %.2fm", CLASS_NAMES[object.label].c_str(), object.probability * 100, distances[i]);
+        i++;
 
         int baseLine = 0;
         cv::Size labelSize = cv::getTextSize(text, cv::FONT_HERSHEY_SIMPLEX, 0.35 * scale, scale, &baseLine);

@@ -57,7 +57,7 @@ class SignFastest {
             std::string nodeName = ros::this_node::getName();
             nh.param(nodeName+"/showFlag", show, false);
             nh.param(nodeName+"/printFlag", print, false);
-            nh.param(nodeName+"/printFlag", printDuration, false); //printDuration
+            nh.param(nodeName+"/printDuration", printDuration, false); //printDuration
             nh.param(nodeName+"/hasDepthImage", hasDepthImage, false);
             nh.param(nodeName+"/real", real, false);
             nh.param(nodeName+"/pub", publish, false);
@@ -300,16 +300,27 @@ class SignFastest {
                     cv::waitKey(1);
                 } else {
                     cv::Mat image_copy = image.clone();
-                    yolov8->drawObjectLabels(image_copy, detected_objects);
-                    double maxVal;
-                    double minVal;
-                    if (hasDepthImage) {
-                        cv::minMaxIdx(depthImage, &minVal, &maxVal);
-                        depthImage.convertTo(normalizedDepthImage, CV_8U, 255.0 / (maxVal - minVal), -minVal * 255.0 / (maxVal - minVal));
+                    std::vector<double> distances;
+                    for(auto &box : detected_objects) {
+                        if(depthImage.empty()) {
+                            ROS_WARN("displaying image. Depth image is empty");
+                            distances.push_back(-1);
+                            continue;
+                        }
+                        double distance = computeMedianDepth(depthImage, box.rect.x, box.rect.y, box.rect.x + box.rect.width, box.rect.y + box.rect.height)/1000;
+                        distances.push_back(distance);
                     }
-                    yolov8->drawObjectLabels(normalizedDepthImage, detected_objects);
-
-                    cv::imshow("normalized depth image", normalizedDepthImage);
+                    
+                    yolov8->drawObjectLabels(image_copy, detected_objects, distances);
+                    // double maxVal;
+                    // double minVal;
+                    // if (hasDepthImage) {
+                    //     cv::minMaxIdx(depthImage, &minVal, &maxVal);
+                    //     depthImage.convertTo(normalizedDepthImage, CV_8U, 255.0 / (maxVal - minVal), -minVal * 255.0 / (maxVal - minVal));
+                    // }
+                    // yolov8->drawObjectLabels(normalizedDepthImage, detected_objects);
+                    // cv::imshow("normalized depth image", normalizedDepthImage);
+                    
                     cv::imshow("image", image_copy);
                     cv::waitKey(1);
                 }
