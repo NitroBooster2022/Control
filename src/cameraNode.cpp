@@ -33,6 +33,7 @@ class CameraNode {
             nh.param(nodeName + "/realsense", realsense, false);
             nh.param(nodeName + "/rate", mainLoopRate, 50);
             nh.param(nodeName + "/pubImage", pubImage, false);
+            nh.param(nodeName + "/thread", useRosTimer, false);
 
             if(!realsense) {
                 if(Sign.hasDepthImage) {
@@ -74,8 +75,36 @@ class CameraNode {
                 }
             }
 
-            std::thread t1(&CameraNode::run_lane, this);
-            std::thread t2(&CameraNode::run_sign, this);
+            if (!doLane) {
+                ROS_WARN("Lane detection is disabled");
+            }
+            if (!doSign) {
+                ROS_WARN("Sign detection is disabled");
+            }
+            if (useRosTimer) {
+                ROS_INFO("RosTimer is enabled");
+            } else {
+                ROS_INFO("RosTimer is disabled");
+            }
+
+            if (useRosTimer) {
+                if (doLane) {
+                    ROS_INFO("starting lane timer");
+                    laneTimer = nh.createTimer(ros::Duration(1.0 / mainLoopRate), &CameraNode::lane_timer_callback, this);
+                }
+                if (doSign) {
+                    ROS_INFO("starting sign timer");
+                    signTimer = nh.createTimer(ros::Duration(1.0 / mainLoopRate), &CameraNode::sign_timer_callback, this);
+                }
+                // if (doLane) {
+                //     std::thread t1(&CameraNode::run_lane, this);
+                //     t1.detach();
+                // }
+                // if (doSign) {
+                //     std::thread t2(&CameraNode::run_sign, this);
+                //     t2.detach();
+                // }
+            }
             if (realsense) {
                 get_frames();
             } else {
@@ -85,8 +114,6 @@ class CameraNode {
                     loopRate.sleep();
                 }
             }
-            t1.join();
-            t2.join();
         }
         SignFastest Sign;
         LaneDetector Lane;
@@ -99,8 +126,9 @@ class CameraNode {
         cv::Mat depthImage, colorImage;
         cv_bridge::CvImagePtr cv_ptr;
         cv_bridge::CvImagePtr cv_ptr_depth;
+        ros::Timer signTimer, laneTimer;
         
-        bool doLane, doSign, realsense, pubImage;
+        bool doLane, doSign, realsense, pubImage, useRosTimer;
         int mainLoopRate;
 
         //lock
@@ -121,86 +149,78 @@ class CameraNode {
         std::unique_ptr<rs2::align> align_to_color;
        
         void depthCallback(const sensor_msgs::ImageConstPtr &msg) {
-            mutex.lock();
+            // mutex.lock();
             cv_ptr_depth = cv_bridge::toCvCopy(msg, sensor_msgs::image_encodings::TYPE_32FC1);
             if(cv_ptr_depth == nullptr) {
                 ROS_WARN("cv_ptr_depth is null");
-                mutex.unlock();
+                // mutex.unlock();
                 return;
             }
             depthImage = cv_ptr_depth->image;
-            mutex.unlock();
+            // mutex.unlock();
         }
         void imageCallback(const sensor_msgs::ImageConstPtr &msg) {
-            mutex.lock();
+            // mutex.lock();
             cv_ptr = cv_bridge::toCvCopy(msg, sensor_msgs::image_encodings::BGR8);
             if(cv_ptr == nullptr) {
                 ROS_WARN("cv_ptr is null");
-                mutex.unlock();
+                // mutex.unlock();
                 return;
             }
-            colorImage = cv_ptr->image;
-            // if (doLane) {
-            //     Lane.publish_lane(cv_ptr->image);
-            // }
-            // if (doSign) {
-            //     Sign.publish_sign(cv_ptr->image, cv_ptr_depth->image);
-            // }
-            mutex.unlock();
+            if (!useRosTimer) {
+                if (doLane) {
+                    Lane.publish_lane(cv_ptr->image);
+                }
+                if (doSign) {
+                    Sign.publish_sign(cv_ptr->image, cv_ptr_depth->image);
+                }
+            } else {
+                colorImage = cv_ptr->image;
+            }
+            // mutex.unlock();
         }
 
+        void lane_timer_callback(const ros::TimerEvent& event) {
+            run_lane_once();
+        }
+        void sign_timer_callback(const ros::TimerEvent& event) {
+            run_sign_once();
+        }
+        void run_lane_once() {
+            if (colorImage.empty()) {
+                ROS_WARN("colorImage is empty");
+                return;
+            }
+            Lane.publish_lane(colorImage);
+        }
+        void run_sign_once() {
+            if (colorImage.empty()) {
+                ROS_WARN("colorImage is empty");
+                return;
+            }
+            if (depthImage.empty()) {
+                ROS_WARN("depthImage is empty");
+                return;
+            }
+            Sign.publish_sign(colorImage, depthImage);
+        }
         void run_lane() {
-            static ros::Rate lane_rate(30);
+            static ros::Rate lane_rate(50);
             if (!doLane) {
-                ROS_WARN("Lane detection is disabled");
                 return;
             }
             while(ros::ok()) {
-                // if (cv_ptr == nullptr) {
-                //     std::cout << "cv_ptr is null" << std::endl;
-                //     ROS_WARN("Color image is empty");
-                //     lane_rate.sleep();
-                //     continue;
-                // }
-                if (colorImage.empty()) {
-                    ROS_WARN("colorImage is empty");
-                    lane_rate.sleep();
-                    continue;
-                }
-                Lane.publish_lane(colorImage);
+                run_lane_once();
                 lane_rate.sleep();
             }
         }
         void run_sign() {
-            static ros::Rate sign_rate(15);
+            static ros::Rate sign_rate(50);
             if (!doSign) {
-                ROS_WARN("Sign detection is disabled");
                 return;
             }
             while(ros::ok()) {
-                // if (cv_ptr == nullptr) {
-                //     std::cout << "cv_ptr is null" << std::endl;
-                //     ROS_WARN("Color image is empty");
-                //     sign_rate.sleep();
-                //     continue;
-                // }
-                // if (cv_ptr_depth == nullptr) {
-                //     std::cout << "cv_ptr_depth is null" << std::endl;
-                //     ROS_WARN("Depth image is empty");
-                //     sign_rate.sleep();
-                //     continue;
-                // }
-                if (colorImage.empty()) {
-                    ROS_WARN("colorImage is empty");
-                    sign_rate.sleep();
-                    continue;
-                }
-                if (depthImage.empty()) {
-                    ROS_WARN("depthImage is empty");
-                    sign_rate.sleep();
-                    continue;
-                }
-                Sign.publish_sign(colorImage, depthImage);
+                run_sign_once();
                 sign_rate.sleep();
             }
         }
@@ -232,6 +252,14 @@ class CameraNode {
                 imu_msg.linear_acceleration.z = accel_data[2];
                 imu_pub.publish(imu_msg);
 
+                if (!useRosTimer) {
+                    if (doLane) {
+                        run_lane_once();
+                    }
+                    if (doSign) {
+                        run_sign_once();
+                    }
+                }
                 if (pubImage) {
                     color_msg = cv_bridge::CvImage(std_msgs::Header(), "bgr8", colorImage).toImageMsg();
                     depth_msg = cv_bridge::CvImage(std_msgs::Header(), "mono16", depthImage).toImageMsg();

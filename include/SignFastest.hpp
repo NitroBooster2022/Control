@@ -39,12 +39,12 @@ class SignFastest {
         {
             std::cout.precision(4);
             nh.param("class_names", class_names, std::vector<std::string>());
-            if(!nh.param("confidence_thresholds", confidence_thresholds, std::vector<float>())) {
+            if(!nh.param("confidence_thresholds", confidence_thresholds, std::vector<float>(13))) {
                 ROS_WARN("Failed to get 'confidence_thresholds' parameter.");
             } else {
                 std::cout << "confidence_thresholds: " << confidence_thresholds.size() << std::endl;
             }
-            if (!nh.param("max_distance_thresholds", distance_thresholds, std::vector<float>())) {
+            if (!nh.param("max_distance_thresholds", distance_thresholds, std::vector<float>(13))) {
                 ROS_WARN("Failed to get 'max_distance_thresholds' parameter.");
             } else {
                 for (float val : distance_thresholds) {
@@ -52,6 +52,13 @@ class SignFastest {
                 }
                 for(int i = 0; i < class_names.size(); i++) {
                     ROS_INFO("class_names: %s, distance_thresholds: %f", class_names[i].c_str(), distance_thresholds[i]);
+                }
+            }
+            if (!nh.param("counter_thresholds", counter_thresholds, std::vector<int>(13))) {
+                ROS_WARN("Failed to get 'counter_thresholds' parameter.");
+            } else {
+                for (int val : counter_thresholds) {
+                    ROS_INFO("Loaded counter threshold: %d", val);
                 }
             }
             std::string nodeName = ros::this_node::getName();
@@ -73,6 +80,8 @@ class SignFastest {
             std::cout << "distance_thresholds: " << distance_thresholds.size() << std::endl;
             std::cout << "model: " << model << std::endl;
             printf("hasDepthImage: %s\n", hasDepthImage ? "true" : "false");
+            
+            sign_counter.resize(OBJECT_COUNT, 0);
 
             if (ncnn) {
                 std::string filePathParam = __FILE__;
@@ -113,6 +122,7 @@ class SignFastest {
             PEDESTRIAN,
             CAR,
         };
+        static constexpr int OBJECT_COUNT = 13;
         // private:
         yoloFastestv2 api;
 
@@ -137,7 +147,9 @@ class SignFastest {
         std::vector<double> depths;
         std::vector<float> confidence_thresholds;
         std::vector<float> distance_thresholds;
+        std::vector<int> counter_thresholds;
         std::vector<std::string> class_names;
+        std::vector<int> sign_counter;
 
         std::mutex mutex;
 
@@ -200,6 +212,7 @@ class SignFastest {
             return 0;
         }
         void publish_sign(const cv::Mat& image, const cv::Mat& depthImage) {
+            
             if(image.empty()) {
                 ROS_WARN("empty image received in sign detector");
                 return;
@@ -210,10 +223,16 @@ class SignFastest {
 
             int hsy = 0;
             
+            static std::vector<int> detected_indices(OBJECT_COUNT, 0);
+            std::fill(detected_indices.begin(), detected_indices.end(), 0);
+
             if (ncnn) {
                 api.detection(image, boxes);
                 for (const auto &box : boxes) {
                     int class_id = box.cate;
+                    detected_indices[class_id] = 1;
+                    sign_counter[class_id]++;
+                    if (sign_counter[class_id] < counter_thresholds[class_id]) continue;
                     float confidence = box.score;
                     int x1 = box.x1;
                     int y1 = box.y1;
@@ -225,12 +244,24 @@ class SignFastest {
                 detected_objects = yolov8->detectObjects(image);
                 for (const struct Object& box : detected_objects) {
                     int class_id = box.label;
+                    detected_indices[class_id] = 1;
+                    sign_counter[class_id]++;
+                    if (sign_counter[class_id] < counter_thresholds[class_id]) {
+                        ROS_INFO("%s detected but counter is only %d", class_names[class_id].c_str(), sign_counter[class_id]);
+                        continue;
+                    }
                     float confidence = box.probability;
                     int x1 = box.rect.x;
                     int y1 = box.rect.y;
                     int x2 = box.rect.x + box.rect.width;
                     int y2 = box.rect.y + box.rect.height;
                     if (populate_sign_msg(sign_msg, image, depthImage, class_id, confidence, x1, y1, x2, y2)) hsy++;
+                }
+            }
+
+            for (int i = 0; i < OBJECT_COUNT; i++) {
+                if (!detected_indices[i]) {
+                    sign_counter[i] = 0;
                 }
             }
 

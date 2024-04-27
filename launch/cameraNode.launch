@@ -14,6 +14,7 @@
 <arg name="realsense" default="false"/>
 <arg name="rate" default="50"/>
 <arg name="pubImage" default="true"/>
+<arg name="thread" default="true"/>
 
 <node pkg="control" name="$(anon cameraNode)" output="screen" type="cameraNode" required="true">
     <param name="/showFlag" value="$(arg show)"/>
@@ -28,6 +29,8 @@
     <param name="/newlane" value="$(arg newlane)"/>
     <param name="/realsense" value="$(arg realsense)"/>
     <param name="/rate" value="$(arg rate)"/>
+    <param name="/pubImage" value="$(arg pubImage)"/>
+    <param name="/thread" value="$(arg thread)"/>
 </node>
 
 </launch>
