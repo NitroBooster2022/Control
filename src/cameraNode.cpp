@@ -105,14 +105,13 @@ class CameraNode {
                 //     t2.detach();
                 // }
             }
-            if (realsense) {
-                get_frames();
-            } else {
-                ros::Rate loopRate(this->mainLoopRate);
-                while(ros::ok()) {
-                    ros::spinOnce();
-                    loopRate.sleep();
+            ros::Rate loopRate(this->mainLoopRate);
+            while(ros::ok()) {
+                ros::spinOnce();
+                if(realsense) {
+                    get_frame();
                 }
+                loopRate.sleep();
             }
         }
         SignFastest Sign;
@@ -224,48 +223,46 @@ class CameraNode {
                 sign_rate.sleep();
             }
         }
-        void get_frames() {
-            while (true) {
-                data = pipe.wait_for_frames();
-                auto aligned_frames = align_to_color->process(data);
-                color_frame = aligned_frames.get_color_frame();
-                depth_frame = aligned_frames.get_depth_frame();
-                gyro_frame = data.first_or_default(RS2_STREAM_GYRO);
-                accel_frame = data.first_or_default(RS2_STREAM_ACCEL);
-                if (!color_frame || !depth_frame) {
-                    ROS_WARN("No frame received");
-                    continue;
-                }
-                colorImage = cv::Mat(cv::Size(640, 480), CV_8UC3, (void*)color_frame.get_data(), cv::Mat::AUTO_STEP);
-                depthImage = cv::Mat(cv::Size(640, 480), CV_16UC1, (void*)depth_frame.get_data(), cv::Mat::AUTO_STEP);
+        void get_frame() {
+            data = pipe.wait_for_frames();
+            auto aligned_frames = align_to_color->process(data);
+            color_frame = aligned_frames.get_color_frame();
+            depth_frame = aligned_frames.get_depth_frame();
+            gyro_frame = data.first_or_default(RS2_STREAM_GYRO);
+            accel_frame = data.first_or_default(RS2_STREAM_ACCEL);
+            if (!color_frame || !depth_frame) {
+                ROS_WARN("No frame received");
+                return;
+            }
+            colorImage = cv::Mat(cv::Size(640, 480), CV_8UC3, (void*)color_frame.get_data(), cv::Mat::AUTO_STEP);
+            depthImage = cv::Mat(cv::Size(640, 480), CV_16UC1, (void*)depth_frame.get_data(), cv::Mat::AUTO_STEP);
 
-                // Convert gyro and accel frames to ROS Imu message
-                imu_msg.header.stamp = ros::Time::now();
-                float *gyro_data = (float *)gyro_frame.get_data();
-                imu_msg.angular_velocity.x = gyro_data[0];
-                imu_msg.angular_velocity.y = gyro_data[1];
-                imu_msg.angular_velocity.z = gyro_data[2];
+            // Convert gyro and accel frames to ROS Imu message
+            imu_msg.header.stamp = ros::Time::now();
+            float *gyro_data = (float *)gyro_frame.get_data();
+            imu_msg.angular_velocity.x = gyro_data[0];
+            imu_msg.angular_velocity.y = gyro_data[1];
+            imu_msg.angular_velocity.z = gyro_data[2];
 
-                float *accel_data = (float *)accel_frame.get_data();
-                imu_msg.linear_acceleration.x = accel_data[0];
-                imu_msg.linear_acceleration.y = accel_data[1];
-                imu_msg.linear_acceleration.z = accel_data[2];
-                imu_pub.publish(imu_msg);
+            float *accel_data = (float *)accel_frame.get_data();
+            imu_msg.linear_acceleration.x = accel_data[0];
+            imu_msg.linear_acceleration.y = accel_data[1];
+            imu_msg.linear_acceleration.z = accel_data[2];
+            imu_pub.publish(imu_msg);
 
-                if (!useRosTimer) {
-                    if (doLane) {
-                        run_lane_once();
-                    }
-                    if (doSign) {
-                        run_sign_once();
-                    }
+            if (!useRosTimer) {
+                if (doLane) {
+                    run_lane_once();
                 }
-                if (pubImage) {
-                    color_msg = cv_bridge::CvImage(std_msgs::Header(), "bgr8", colorImage).toImageMsg();
-                    depth_msg = cv_bridge::CvImage(std_msgs::Header(), "mono16", depthImage).toImageMsg();
-                    color_pub.publish(color_msg);
-                    depth_pub.publish(depth_msg);
+                if (doSign) {
+                    run_sign_once();
                 }
+            }
+            if (pubImage) {
+                color_msg = cv_bridge::CvImage(std_msgs::Header(), "bgr8", colorImage).toImageMsg();
+                depth_msg = cv_bridge::CvImage(std_msgs::Header(), "mono16", depthImage).toImageMsg();
+                color_pub.publish(color_msg);
+                depth_pub.publish(depth_msg);
             }
         }
 };
@@ -273,7 +270,6 @@ class CameraNode {
 int main(int argc, char **argv) {
     std::cout << "OpenCV version : " << CV_VERSION << std::endl;
 
-    // Initialize ROS node and publisher
     ros::init(argc, argv, "object_detector2");
     ros::NodeHandle nh;
 

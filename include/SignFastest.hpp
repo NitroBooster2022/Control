@@ -373,32 +373,53 @@ class SignFastest {
                 }
             }
         }
-    
+
         double computeMedianDepth(const cv::Mat& depthImage, int bbox_x1, int bbox_y1, int bbox_x2, int bbox_y2) {
-            // Ensure the bounding box coordinates are valid
+            // auto start = high_resolution_clock::now();
             int x1 = std::max(0, bbox_x1);
             int y1 = std::max(0, bbox_y1);
             int x2 = std::min(depthImage.cols, bbox_x2);
             int y2 = std::min(depthImage.rows, bbox_y2);
             croppedDepth = depthImage(cv::Rect(x1, y1, x2 - x1, y2 - y1));
+
+            if (croppedDepth.empty()) return -1;
             std::vector<double> depths;
-            for (int i = 0; i < croppedDepth.rows; ++i) {
-                for (int j = 0; j < croppedDepth.cols; ++j) {
-                    double depth = croppedDepth.at<float>(i, j);
-                    if (depth > 100) {  // Only consider valid depth readings
-                        depths.push_back(depth);
-                    }
-                }
+
+            if (!croppedDepth.isContinuous()) {
+                croppedDepth = croppedDepth.clone();
             }
+            // Convert the cropped depth matrix to a single row vector of type double
+            croppedDepth.reshape(1, 1).copyTo(depths);
+            depths.erase(std::remove_if(depths.begin(), depths.end(), [](double depth) { return depth <= 100; }), depths.end());
+            
+            // for (int i = 0; i < croppedDepth.rows; ++i) {
+            //     for (int j = 0; j < croppedDepth.cols; ++j) {
+            //         double depth = croppedDepth.at<float>(i, j);
+            //         if (depth > 100) {  // Only consider valid depth readings
+            //             depths.push_back(depth);
+            //         }
+            //     }
+            // }
+
             if (depths.empty()) {
                 return -1; 
             }
-            // Find the median using std::nth_element
-            size_t index20Percent = depths.size() * 0.2;
-            std::nth_element(depths.begin(), depths.begin() + index20Percent, depths.end());
-            if (index20Percent % 2) { // if odd
-                return depths[index20Percent / 2];
+            // printf("depths size: %ld, x1: %d, y1: %d, x2: %d, y2: %d, rows: %d, cols: %d\n", depths.size(), x1, y1, x2, y2, croppedDepth.rows, croppedDepth.cols);
+
+            size_t index = depths.size() * 0.5;
+            std::nth_element(depths.begin(), depths.begin() + index, depths.end());
+
+            // auto stop = high_resolution_clock::now();
+            // auto duration = duration_cast<microseconds>(stop - start);
+            // static double avg_duration = 0;
+            // static int count = 0;
+            // count++;
+            // avg_duration = (avg_duration * (count - 1) + duration.count()) / count;
+            // printf("computeMedianDepth duration: %ld, avg: %.2f\n", duration.count(), avg_duration);
+
+            if (index % 2) { // if odd
+                return depths[index / 2];
             }
-            return 0.5 * (depths[(index20Percent - 1) / 2] + depths[index20Percent / 2]);
+            return 0.5 * (depths[(index - 1) / 2] + depths[index / 2]);
         }
 };
