@@ -160,6 +160,7 @@ class SignFastest {
 
         //yolov8 engine inference related
         std::vector<Object> detected_objects;
+        // YoloV8Config config;
         YoloV8Config config;
         std::unique_ptr<YoloV8> yolov8;
 
