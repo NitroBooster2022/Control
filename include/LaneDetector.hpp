@@ -75,6 +75,42 @@ public:
 
     // NEW LANE
     std::vector<int> y_Values = {475,450,420,400,350,300};
+    cv::Mat image_cont_1;
+    cv::Mat image_cont_2;
+    cv::Mat image_cont_3;
+    cv::Mat grayscale_image;
+    cv::Mat horistogram;
+    std::tuple<int,std::vector<double>, std::vector<double>, bool, int, bool> ret;
+    std::vector<double> waypoints;
+    int threshold_2 = 2000;
+
+     // VECTOR CONTAINERS
+    std::vector<double> right_1;
+    std::vector<double> left_1;
+    std_msgs::Float32MultiArray waypoints_msg;
+    std_msgs::MultiArrayDimension dimension;
+
+    // STATIC VARIABLES
+    double height = 0.16;
+    double roll = 0.15;
+    double depthy;
+    double laneMaxVal;
+    double laneMinVal;
+    // LINE FIT
+    int lane_width = 350;        // HARD CODED LANE WIDTH
+    int n_windows = 9;           // HARD CODED WINDOW NUMBER FOR LANE PARSING
+    int threshold = 2000;       // HARD CODED THRESHOLD
+    int leftx_base = 0;
+    int rightx_base = 640;
+    int number_of_fits = 0;
+    bool stop_line = false;
+    int stop_index = 0;
+    bool cross_walk = false;
+    int width = 370;
+    int stop_loc = -1;
+    cv::Mat map1, map2;
+    bool maps_initialized = false;
+
     // Declare CAMERA_PARAMS as a constant global variable
     const std::map<std::string, double> CAMERA_PARAMS = {
         {"fx", 554.3826904296875},
@@ -113,6 +149,12 @@ public:
     // Define distortion coefficients as an empty constant global variable
     const cv::Mat distCoeff = cv::Mat();
 
+    void initializeMaps(const cv::Mat& cameraMatrix, const cv::Mat& distCoeff, const cv::Mat& transMatrix, const cv::Size& size) {
+        cv::initUndistortRectifyMap(cameraMatrix, distCoeff, cv::Mat(),
+                                    cameraMatrix, size, CV_16SC2, map1, map2);
+        maps_initialized = true;
+    }
+
     void publish_lane(const cv::Mat& image) {
         if(image.empty()) {
             ROS_WARN("empty image received in lane detector");
@@ -120,38 +162,58 @@ public:
         }
         auto start = high_resolution_clock::now();
         if (newlane) {
-            cv::Mat grayscale_image;
+            if (!maps_initialized) {
+                initializeMaps(cameraMatrix, distCoeff, transMatrix, image.size());
+            }
+            static cv::Mat grayscale_image = cv::Mat::zeros(480, 640, CV_8UC1);
+            static cv::Mat ipm_color = cv::Mat::zeros(480, 640, CV_8UC3);
+            static cv::Mat ipm_image = cv::Mat::zeros(480, 640, CV_8UC1);
+            static cv::Mat binary_image = cv::Mat::zeros(480, 640, CV_8UC1);
             cv::cvtColor(image, grayscale_image, cv::COLOR_BGR2GRAY);
             // ROS_INFO("Image converted to cv::Mat");
-            cv::Mat ipm_color = getIPM(image);
-            cv::Mat ipm_image = getIPM(grayscale_image);
-            // ROS_INFO("IPM image created");
-            cv::Mat binary_image = getLanes(ipm_image);
-            // ROS_INFO("Binary image created");
-            std::tuple<int,std::vector<double>, std::vector<double>, bool, int, bool> ret = line_fit_2(binary_image);
-            // ROS_INFO("Line fit done");
+            auto start = high_resolution_clock::now();
+            if(!getIPM(image, ipm_color)) return;
+            auto start1 = high_resolution_clock::now();
+            if(!getIPM(grayscale_image, ipm_image)) return;
+            auto start2 = high_resolution_clock::now();
+            getLanes(ipm_image, binary_image);
+            auto start3 = high_resolution_clock::now();
+            ret = line_fit_2(binary_image);
+            auto start4 = high_resolution_clock::now();
             // printTuple(ret);
-            std::vector<double> waypoints = getWaypoints(ret,y_Values);
-            // std::vector<float> waypoint_2;
-            // std::cout << "Waypoints are:"<< std::endl;
-            // for (double value : waypoint_2) {
-            //     std::cout << value << " ";
-                // waypoint_2 = pixel_to_world(wayPoint[value],y_Values[value]);
-            // }
-            // waypoint_2 = pixel_to_world(waypoints[0],y_Values[0], normalizedDepthImage);
-            // std::cout << "YES" << std::endl;
-            std::vector<double> right_1  = std::get<2>(ret);
-            std::vector<double> left_1  = std::get<1>(ret);
+            static std::vector<double> waypoints;
+            waypoints = getWaypoints(ret,y_Values);
+            auto start5 = high_resolution_clock::now();
+            static std::vector<double> right_1;
+            right_1 = std::get<2>(ret);
+            static std::vector<double> left_1;
+            left_1  = std::get<1>(ret);
+
+            auto stop = high_resolution_clock::now();
+            auto duration = duration_cast<microseconds>(stop - start);
+            auto duration1 = duration_cast<microseconds>(start1 - start);
+            auto duration2 = duration_cast<microseconds>(start2 - start1);
+            auto duration3 = duration_cast<microseconds>(start3 - start2);
+            auto duration4 = duration_cast<microseconds>(start4 - start3);
+            auto duration5 = duration_cast<microseconds>(start5 - start4);
+            ROS_INFO("duration: %ld", duration.count());
+            ROS_INFO("duration1: %ld", duration1.count());
+            ROS_INFO("duration2: %ld", duration2.count());
+            ROS_INFO("duration3: %ld", duration3.count());
+            ROS_INFO("duration4: %ld", duration4.count());
+            ROS_INFO("duration5: %ld", duration5.count());
+            
             // plot_polynomial(right_1, left_1, waypoints, y_Values);
-            std_msgs::Float32MultiArray waypoints_msg;
-            std_msgs::MultiArrayDimension dimension;
+            // std_msgs::Float32MultiArray waypoints_msg;
+            // std_msgs::MultiArrayDimension dimension;
             // Set dimension label and size
             dimension.label = "#ofwaypoints";
-            dimension.size = 1;
+            dimension.size = 2;
             waypoints_msg.layout.dim.push_back(dimension);
 
             // Populate data array with waypoints
             waypoints_msg.data.push_back(waypoints[5]);
+            waypoints_msg.data.push_back(stop_loc);
             // waypoints_msg.data.push_back(-wp[0]);
             // waypoints_msg.data.push_back(wp[1]);
             // waypoints_msg.data.push_back(-wp[1]);
@@ -166,6 +228,10 @@ public:
 
             // Publish the message
             waypoints_pub.publish(waypoints_msg);
+            lane_msg.center = waypoints[5];
+            lane_msg.stopline = stop_loc;
+            lane_msg.header.stamp = ros::Time::now();
+            lane_pub.publish(lane_msg);
 
             if(showflag) {
                 cv::Mat gyu_img = viz3(ipm_color,image, ret, waypoints,y_Values, true);
@@ -319,7 +385,6 @@ public:
         std::vector<float> world_coords(2);
         // world_coords[0] = static_cast<float>(map_x);
         // world_coords[1] = static_cast<float>(map_y);
-        // std::cout << "Ended Pixel" << std::endl;
         return world_coords;
     }
     
@@ -429,26 +494,34 @@ public:
     }
 
 
-    cv::Mat getIPM(cv::Mat inputImage, bool rev = false) {
-        cv::Mat undistortImage;
-        cv::undistort(inputImage, undistortImage, cameraMatrix, distCoeff);
-        cv::Mat inverseMap;
-        cv::Size dest_size(inputImage.cols, inputImage.rows);
-        cv::warpPerspective(undistortImage, inverseMap, transMatrix, dest_size, cv::INTER_LINEAR);
-        return inverseMap;
+    int getIPM(const cv::Mat& inputImage, cv::Mat& outputImage) {
+        if (!maps_initialized) {
+            std::cerr << "Error: Maps not initialized." << std::endl;
+            return 0;
+        }
+
+        static cv::Mat remapped, result;
+        // Apply the precomputed maps to remap the image
+        cv::remap(inputImage, remapped, map1, map2, cv::INTER_LINEAR, cv::BORDER_CONSTANT);
+
+        // Apply the perspective warp transformation
+        cv::warpPerspective(remapped, result, transMatrix, inputImage.size(), cv::INTER_LINEAR);
+        
+        outputImage = result;
+        return 1;
     }
 
 
 
-    cv::Mat getLanes(cv::Mat inputImage) {
+    void getLanes(const cv::Mat &inputImage, cv::Mat &outputImage) {
         cv::Mat imageHist;
         cv::calcHist(&inputImage, 1, 0, cv::Mat(), imageHist, 1, &inputImage.rows, 0);
         double minVal, maxVal;
         cv::minMaxLoc(imageHist, &minVal, &maxVal);
         int threshold_value = std::min(std::max(static_cast<int>(maxVal) - 75, 30), 200);
-        cv::Mat binary_thresholded;
+        static cv::Mat binary_thresholded = cv::Mat::zeros(inputImage.size(), CV_8UC1);
         cv::threshold(inputImage, binary_thresholded, threshold_value, 255, cv::THRESH_BINARY);
-        return binary_thresholded;
+        outputImage =  binary_thresholded;
     }
 
     std::vector<double> getWaypoints(std::tuple<int,std::vector<double>, std::vector<double>, bool, int, bool> ret, std::vector<int> &y_Values) {
@@ -569,63 +642,26 @@ public:
         return center_indices;
     }
 
-    std::tuple<bool, int, int> find_stop_line(const cv::Mat& image, int threshold) { // Function to identify presence of stop line
+    int find_stop_line(const cv::Mat& image, int threshold) { // Function to identify presence of stop line
+        int width = 300;
+        stop_line = false;
+        int stop_loc = -1;
+        std::vector<int> hist;
+        cv::Mat roi = image(cv::Range::all(), cv::Range(0, 639));
+        cv::reduce(roi, horistogram, 1, cv::REDUCE_SUM, CV_32S);
 
-        // NOTE : CAN BE OPTIMIZED BY COMBINING VERTICAL HISTOGRAM WITH find_center_indices, reduce one histogram computation
-        // Maybe modify the return values to conform with what is needed
 
-        // Find indices where histogram values are above the threshold
-        cv::Mat histogram;
-        cv::reduce(image(cv::Range(0, 480), cv::Range::all()) / 2, histogram, 0, cv::REDUCE_SUM, CV_32S);
-        
-        std::vector<int> above_threshold;       // Container for values above threshold
-
-        for (int i = 0; i < histogram.cols; ++i) {      // Iterate over histogram values
-            if (histogram.at<int>(0, i) > threshold) {
-                above_threshold.push_back(i);           // Retain values above threshold
+        for (int i = 0; i < horistogram.rows; ++i) {
+            hist.push_back(static_cast<int>(horistogram.at<int>(0,i)/255));
+                if (hist[i] >= width) {
+                // stop_line = true;
+                stop_loc = i;
+                // above_width_indices.push_back(i);
+                // stop_line = true;
             }
+
         }
-
-        // Find consecutive groups of five or more indices
-        std::vector<std::vector<int>> consecutive_groups;       // Container for continuous pixel groups
-
-        for (int i = 0; i < above_threshold.size();) {          // Iterate over pixels above the threshold
-            int j = i;
-            while (j < above_threshold.size() && above_threshold[j] - above_threshold[i] == j - i) {
-                ++j;
-            }
-            if (j - i >= 5) {
-                consecutive_groups.push_back(std::vector<int>(above_threshold.begin() + i, above_threshold.begin() + j));       // Retain groups of continuous pixels
-            }
-            i = j;
-        }
-
-        // Find the maximum index of the horizontal histogram
-        // This is because the stop line will be a section of a lot of white pixels, i.e. the max of the histogram horizontally
-
-        cv::Mat horistogram;
-        cv::reduce(image(cv::Range::all(), cv::Range(0, 640)) / 2, horistogram, 1, cv::REDUCE_SUM, CV_32S);
-        cv::Point max_loc;
-        cv::minMaxLoc(horistogram, nullptr, nullptr, nullptr, &max_loc);
-
-        // Check to see if there is a sequence of pixels long enough for a stop line
-        bool stop_line = false;
-        int width = 0;
-        // for (const auto& group : consecutive_groups) {  
-        //     if (group.size() >= 370) {                  // NOTE: HARD CODED VALUE for the stop line width
-        //         stop_line = true;
-        //         cv::Mat above_threshold2;
-        //         cv::threshold(horistogram, above_threshold2, 50000, 255, cv::THRESH_BINARY); // causes problems
-        //         std::vector<cv::Point> non_zero_indices;
-        //         cv::findNonZero(above_threshold2, non_zero_indices);
-        //         if (!non_zero_indices.empty()) {
-        //             width = abs(non_zero_indices.back().y - non_zero_indices.front().y);
-        //         }
-        //         break;
-        //     }
-        // }
-
-        return std::make_tuple(stop_line, max_loc.y, width);
+        return stop_loc;
     }
 
     bool check_cross_walk(const cv::Mat& image, int stop_index) {
@@ -687,14 +723,15 @@ public:
     }
 
     std::tuple<int,std::vector<double>, std::vector<double>, bool, int, bool> line_fit_2(cv::Mat binary_warped){
+        auto start1 = high_resolution_clock::now();
         // Declare variables to be used
-        int lane_width = 350;        // HARD CODED LANE WIDTH
-        int n_windows = 9;           // HARD CODED WINDOW NUMBER FOR LANE PARSING
+        static int lane_width = 350;        // HARD CODED LANE WIDTH
+        static int n_windows = 9;           // HARD CODED WINDOW NUMBER FOR LANE PARSING
         cv::Mat histogram;
-        int threshold = 2000;       // HARD CODED THRESHOLD
+        static int threshold = 2000;       // HARD CODED THRESHOLD
         int leftx_base = 0;
         int rightx_base = 640;
-        std::tuple<int,std::vector<double>, std::vector<double>, bool, int, bool> ret;
+        static std::tuple<int,std::vector<double>, std::vector<double>, bool, int, bool> ret;
         // Tuple variables  --- Initialize and declare
         int number_of_fits = 0;
         std::vector<double> left_fit = {0.0};
@@ -703,15 +740,11 @@ public:
         int stop_index = 0;
         bool cross_walk = false;
         cv::reduce(binary_warped(cv::Range(200, 480), cv::Range::all()) / 2, histogram, 0, cv::REDUCE_SUM, CV_32S);
-        // displayHistogram(histogram);
-        std::tuple<bool, int, int> stop_data = find_stop_line(binary_warped, threshold);    // Get the stop line data
-        std::vector<int> indices = find_center_indices(histogram, threshold);               // Get the center indices
-        stop_line = std::get<0>(stop_data);
 
-        if(stop_line){      // Check crosswalk only if there is a stop line 
-            stop_index = std::get<1>(stop_data);
-            cross_walk = check_cross_walk(binary_warped,stop_index);
-        }
+        auto start2 = high_resolution_clock::now();
+        std::vector<int> indices = find_center_indices(histogram, threshold);               // Get the center indices
+
+        auto start3 = high_resolution_clock::now();
         int size_indices = indices.size();      // Number of lanes detected
 
         if(size_indices == 0){                  // Check to see if lanes detected, if not return
@@ -766,24 +799,27 @@ public:
         std::vector<cv::Point> nonzero;
 
         cv::findNonZero(binary_warped, nonzero);    // Find nonzero values in OpenCV point format
+        
+        auto start4 = high_resolution_clock::now();
 
         // Separate x and y coordinates of nonzero pixels
         std::vector<int> nonzeroy, nonzerox;
-        for (const auto& point : nonzero) {
-            nonzeroy.push_back(point.y);
-            nonzerox.push_back(point.x);
+        for (size_t i = 0; i < nonzero.size(); i += 2) { // Increment index by 2
+            nonzeroy.push_back(nonzero[i].y);
+            nonzerox.push_back(nonzero[i].x);
+
         }
 
+        auto start5 = high_resolution_clock::now();
         // Current positions to be updated for each window
         int leftx_current = leftx_base; // Assuming leftx_base is already defined
         int rightx_current = rightx_base; // Assuming rightx_base is already defined
 
-
         // Set the width of the windows +/- margin
-        int margin = 50;
+        static int margin = 50;
 
         // Set minimum number of pixels found to recenter window
-        int minpix = 50;
+        static int minpix = 50;
 
         // Create empty vectors to receive left and right lane pixel indices
         std::vector<int> left_lane_inds;
@@ -840,6 +876,7 @@ public:
 
         }
 
+        // auto start6 = high_resolution_clock::now();
         // Declare vectors to contain the pixel coordinates to fit
         std::vector<double> leftx;
         std::vector<double> lefty;
@@ -857,20 +894,20 @@ public:
                 leftx.push_back(nonzerox[idx]);
                 lefty.push_back(nonzeroy[idx]);            
             }
-            
 
             // Perform polynomial fitting
-            alglib::real_1d_array x_left, y_left;           // Declare alglib array type
+            static alglib::real_1d_array x_left, y_left;           // Declare alglib array type
             x_left.setcontent(leftx.size(), leftx.data());  // Populate X array
             y_left.setcontent(lefty.size(), lefty.data());  // Populate Y array
-            alglib::polynomialfitreport rep_left;
-            alglib::barycentricinterpolant p_left;
+            static alglib::polynomialfitreport rep_left;
+            static alglib::barycentricinterpolant p_left;
             alglib::polynomialfit(y_left, x_left, m, p_left, rep_left);     // Perform polynomial fit
             // Convert polynomial coefficients to standard form
-            alglib::real_1d_array a1;
+            static alglib::real_1d_array a1;
             alglib::polynomialbar2pow(p_left, a1);
             left_fit = convertToArray(a1);      // Convert back to std::vector 
         }
+
 
         if (number_of_fits == 3 || number_of_fits == 2) {
             // Concatenate right_lane_inds if needed
@@ -883,17 +920,25 @@ public:
             }
 
             // Perform polynomial fitting
-            alglib::real_1d_array x_right, y_right;             // Declare alglib array type
+            static alglib::real_1d_array x_right, y_right;             // Declare alglib array type
             x_right.setcontent(rightx.size(), rightx.data());   // Populate X array
             y_right.setcontent(righty.size(), righty.data());   // Populate Y array
-            alglib::polynomialfitreport rep_right; 
-            alglib::barycentricinterpolant p_right;
+            static alglib::polynomialfitreport rep_right; 
+            static alglib::barycentricinterpolant p_right;
             alglib::polynomialfit(y_right, x_right, m, p_right, rep_right);     // Perform polynomial fit
             // Convert polynomial coefficients to standard form
-            alglib::real_1d_array a3;
+            static alglib::real_1d_array a3;
             alglib::polynomialbar2pow(p_right, a3);
             right_fit = convertToArray(a3);     // Convert back to std::Vector 
         }
+        // auto stop = high_resolution_clock::now();
+        // auto duration1 = duration_cast<microseconds>(start2 - start1);
+        // auto duration2 = duration_cast<microseconds>(start3 - start2);
+        // auto duration3 = duration_cast<microseconds>(start4 - start3);
+        // auto duration4 = duration_cast<microseconds>(start5 - start4);
+        // auto duration5 = duration_cast<microseconds>(start6 - start5);
+        // auto duration6 = duration_cast<microseconds>(stop - start6);
+        // printf("line_fit_2: duration1: %ld\nline_fit_2: duration2: %ld\nline_fit_2: duration3: %ld\nline_fit_2: duration4: %ld\nline_fit_2: duration5: %ld\nline_fit_2: duration6: %ld\n", duration1.count(), duration2.count(), duration3.count(), duration4.count(), duration5.count(), duration6.count());
 
         // Make and return tuple of required values
         ret = std::make_tuple(number_of_fits,left_fit,right_fit,stop_line,stop_index,cross_walk);

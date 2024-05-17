@@ -11,7 +11,14 @@
 <arg name="sign" default="true"/>
 <arg name="ncnn" default="false"/>
 <arg name="newlane" default="true"/>
-<node pkg="control" name="$(anon cameraNode)" output="screen" type="cameraNodeReal" required="true">
+<arg name="realsense" default="true"/>
+<arg name="rate" default="50"/>
+<arg name="lane_rate" default="100"/>
+<arg name="sign_rate" default="30"/>
+<arg name="pubImage" default="true"/>
+<arg name="thread" default="true"/>
+
+<node pkg="control" name="$(anon cameraNode)" output="screen" type="cameraNode" required="true">
     <param name="/showFlag" value="$(arg show)"/>
     <param name="/printFlag" value="$(arg print)"/>
     <param name="/printDuration" value="$(arg print_duration)"/>
@@ -22,6 +29,12 @@
     <param name="/sign" value="$(arg sign)"/>
     <param name="/ncnn" value="$(arg ncnn)"/>
     <param name="/newlane" value="$(arg newlane)"/>
+    <param name="/realsense" value="$(arg realsense)"/>
+    <param name="/rate" value="$(arg rate)"/>
+    <param name="/pubImage" value="$(arg pubImage)"/>
+    <param name="/thread" value="$(arg thread)"/>
+    <param name="/lane_rate" value="$(arg lane_rate)"/>
+    <param name="/sign_rate" value="$(arg sign_rate)"/>
 </node>
 
 </launch>

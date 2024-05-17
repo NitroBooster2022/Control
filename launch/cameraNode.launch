@@ -13,6 +13,8 @@
 <arg name="newlane" default="true"/>
 <arg name="realsense" default="false"/>
 <arg name="rate" default="50"/>
+<arg name="lane_rate" default="100"/>
+<arg name="sign_rate" default="30"/>
 <arg name="pubImage" default="true"/>
 <arg name="thread" default="true"/>
 
@@ -31,6 +33,8 @@
     <param name="/rate" value="$(arg rate)"/>
     <param name="/pubImage" value="$(arg pubImage)"/>
     <param name="/thread" value="$(arg thread)"/>
+    <param name="/lane_rate" value="$(arg lane_rate)"/>
+    <param name="/sign_rate" value="$(arg sign_rate)"/>
 </node>
 
 </launch>

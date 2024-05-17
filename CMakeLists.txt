@@ -70,13 +70,13 @@ add_message_files(
 )
 
 ## Generate services in the 'srv' folder
-add_service_files(
-  FILES
-  Localization.srv
-  nav.srv
-  get_direction.srv
-  dotted.srv
-)
+# add_service_files(
+#   FILES
+#   Localization.srv
+#   nav.srv
+#   get_direction.srv
+#   dotted.srv
+# )
 
 ## Generate added messages and services with any dependencies listed here
 generate_messages(
@@ -120,17 +120,20 @@ include_directories(
 include_directories(~/TensorRT-8.6.1.6/include)
 link_directories(~/TensorRT-8.6.1.6/lib)
 
-include_directories(/usr/local/cuda/targets/x86_64-linux/include)
-link_directories(/usr/local/cuda/targets/x86_64-linux/lib)
+# include_directories(/usr/local/cuda/targets/x86_64-linux/include)
+# link_directories(/usr/local/cuda/targets/x86_64-linux/lib)
 
-include_directories(/usr/local/cuda-11.4/targets/aarch64-linux/include)
-link_directories(/usr/local/cuda-11.4/targets/aarch64-linux/lib)
+# include_directories(/usr/local/cuda-11.4/targets/aarch64-linux/include)
+# link_directories(/usr/local/cuda-11.4/targets/aarch64-linux/lib)
+
+# include_directories(/usr/local/cuda-11.8/include)
+# link_directories(/usr/local/cuda-11.8/lib)
 
 # include_directories(/usr/local/cuda-11.8/include)
 # link_directories(/usr/local/cuda-11.8/lib)
 
-# include_directories(/usr/local/cuda-11.8/include)
-# link_directories(/usr/local/cuda-11.8/lib)
+# include_directories(/usr/local/cuda-11.4/include)
+# link_directories(/usr/local/cuda-11.4/lib64)
 
 include_directories(/usr/local/include/opencv2)
 link_directories(/usr/local/lib)
@@ -166,57 +169,58 @@ target_link_libraries(videoDetector
   ${catkin_LIBRARIES}
   ncnn ${OpenCV_LIBS}
 )
-add_executable(signTRT2
-src/signTRT2.cpp
-src/engine.cpp
-src/yolov8.cpp
-)
-target_link_libraries(signTRT2
-  ${catkin_LIBRARIES}
-  ${OpenCV_LIBS}
-  ${CUDA_LIBRARIES}
-  nvinfer
-  nvparsers
-  nvonnxparser
-)
+# add_executable(signTRT2
+# src/signTRT2.cpp
+# src/engine.cpp
+# src/yolov8.cpp
+# )
+# target_link_libraries(signTRT2
+#   ${catkin_LIBRARIES}
+#   ${OpenCV_LIBS}
+#   ${CUDA_LIBRARIES}
+#   nvinfer
+#   nvparsers
+#   nvonnxparser
+# )
 
-add_executable(cameraNodeRos
-  src/cameraNodeRos.cpp
-  src/yolo-fastestv2.cpp
-  src/engine.cpp
-  src/yolov8.cpp
-)
-target_link_libraries(cameraNodeRos
-  ${catkin_LIBRARIES}
-  ncnn
-  ${OpenCV_LIBS}
-  ${realsense2_LIBRARY}
-  ${CUDA_LIBRARIES}
-  nvinfer
-  nvparsers
-  nvonnxparser
-  alglib
-  ${Python3_LIBRARIES}
-)
-add_executable(cameraNodeReal
-  src/cameraNodeReal.cpp
-  src/yolo-fastestv2.cpp
-  src/engine.cpp
-  src/yolov8.cpp
-)
-target_link_libraries(cameraNodeReal
-  ${catkin_LIBRARIES}
-  ncnn
-  ${OpenCV_LIBS}
-  ${realsense2_LIBRARY}
-  ${CUDA_LIBRARIES}
-  nvinfer
-  nvparsers
-  nvonnxparser
-  alglib
-  ${Python3_LIBRARIES}
-  ${realsense2_LIBRARY}
-)
+# add_executable(cameraNodeRos
+#   src/cameraNodeRos.cpp
+#   src/yolo-fastestv2.cpp
+#   src/engine.cpp
+#   src/yolov8.cpp
+# )
+# target_link_libraries(cameraNodeRos
+#   ${catkin_LIBRARIES}
+#   ncnn
+#   ${OpenCV_LIBS}
+#   ${realsense2_LIBRARY}
+#   ${CUDA_LIBRARIES}
+#   nvinfer
+#   nvparsers
+#   nvonnxparser
+#   alglib
+#   ${Python3_LIBRARIES}
+# )
+# add_executable(cameraNodeReal
+#   src/cameraNodeReal.cpp
+#   src/yolo-fastestv2.cpp
+#   src/engine.cpp
+#   src/yolov8.cpp
+# )
+# target_link_libraries(cameraNodeReal
+#   ${catkin_LIBRARIES}
+#   ncnn
+#   ${OpenCV_LIBS}
+#   ${realsense2_LIBRARY}
+#   ${CUDA_LIBRARIES}
+#   nvinfer
+#   nvparsers
+#   nvonnxparser
+#   alglib
+#   ${Python3_LIBRARIES}
+#   ${realsense2_LIBRARY}
+# )
+
 add_executable(cameraNode
   src/cameraNode.cpp
   src/yolo-fastestv2.cpp
@@ -236,6 +240,8 @@ target_link_libraries(cameraNode
   ${Python3_LIBRARIES}
   ${realsense2_LIBRARY}
 )
+# file(GLOB_RECURSE ALGLIB_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/include/alglib-cpp/src/*.cpp)
+# add_library(alglib SHARED ${ALGLIB_SOURCES})
 
 # find_package(OpenMP)
 # if (OpenMP_CXX_FOUND)
