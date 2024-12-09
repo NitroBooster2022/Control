@@ -97,10 +97,11 @@ class SignFastest {
                 api.loadModel(param, bin);
             } else {
                 std::string model_name;
-                nh.param("model_name", model_name, std::string("citycocov2lgtclab_20")); 
+                nh.param("v8_model", model_name, std::string("citycocov2lgtclab_20")); 
                 // model_name = "v2originalTRT"; 
                 std::string current_path = getSourceDirectory();
                 std::string modelPath = current_path + "/../models/" + model_name + ".onnx";
+                ROS_INFO("modelpath: %s", modelPath.c_str());
                 yolov8 = std::make_unique<YoloV8>(modelPath, config);
             }
 
